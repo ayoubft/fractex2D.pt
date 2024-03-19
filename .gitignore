@@ -9,7 +9,7 @@ data/**/*.tiff
 model.pt
 
 #----------------- Other -----------------#
-outputs_tmp
+outputs_tmp/
 
 #----------------- Scripts -----------------#
 scripts/srun*
