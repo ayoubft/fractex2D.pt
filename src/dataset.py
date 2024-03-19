@@ -41,7 +41,8 @@ class RGBT(Dataset):
              if fname.endswith(ext)])
         self.masks = sorted(
             [os.path.join(dir, subset, 'gt', fname)
-             for fname in os.listdir(os.path.join(dir, subset, 'gt'))])
+             for fname in os.listdir(os.path.join(dir, subset, 'gt'))
+             if fname.endswith(ext)])
 
     def __len__(self):
         return len(self.images)
