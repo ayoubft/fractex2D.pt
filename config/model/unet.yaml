@@ -1,0 +1,4 @@
+_target_: src.models.unet.UNet
+in_channels: 4
+out_channels: 1
+init_features: 64

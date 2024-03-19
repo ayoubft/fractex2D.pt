@@ -1,0 +1,10 @@
+_target_: src.dataset.rgbt_dataset
+batch_size: ${batch_size}
+topo: False
+data_path: 'data/matteo21/jpg'
+train_root: 'train'
+val_root: 'valid'
+test_root: 'test'
+in_channels: 3
+out_channels: 1
+shape: 256

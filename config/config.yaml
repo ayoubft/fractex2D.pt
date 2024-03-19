@@ -1,0 +1,28 @@
+batch_size: 32
+no_cuda: False
+seed: 42
+epochs: 100  #
+classes: 2
+threshold: 0.4
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.001
+  weight_decay: 0
+  amsgrad: true
+
+defaults:
+  - _self_
+  - dataset: rgb_matteo_21
+  - model: deeplabv3plus  #
+  - loss: dice  #
+
+#------------------------- Hydra Config ------------------------#
+hydra:
+  job:
+    name: deep3_rgb_dice_${batch_size}  #
+  run:
+    dir: outputs_tmp/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
+  sweep:
+    dir: multirun/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
+    subdir: ${hydra.job.override_dirname}
