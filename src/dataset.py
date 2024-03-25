@@ -74,8 +74,8 @@ class RGBT(Dataset):
         # scale
         image_tensor /= 255
         mask_tensor /= 255
-        mask_tensor[mask_tensor > 0.1] = 1
-        mask_tensor[mask_tensor <= 0.1] = 0
+        mask_tensor[mask_tensor > 0.01] = 1
+        mask_tensor[mask_tensor <= 0.01] = 0
 
         if self.transform:
             image_tensor = self.transform(image_tensor)
