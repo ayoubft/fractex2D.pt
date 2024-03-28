@@ -1,4 +1,4 @@
 _target_: src.models.unet.UNet
-in_channels: 4
-out_channels: 1
+in_channels: ${dataset.in_channels}
+out_channels: ${dataset.out_channels}
 init_features: 64
