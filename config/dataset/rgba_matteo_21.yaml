@@ -1,5 +1,5 @@
 _target_: src.dataset.rgbt_dataset
-barch_size: ${batch_size}
+batch_size: ${batch_size}
 topo: True
 data_path: 'data/matteo21/jpg'
 train_root: 'train'

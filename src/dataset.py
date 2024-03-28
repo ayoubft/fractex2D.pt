@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 
 def rgbt_dataset(batch_size: int,
                  topo,
+                 ext,
                  data_path: str = 'data/jpg',
                  train_root: str = 'train',
                  val_root: str = 'valid',
@@ -20,18 +21,19 @@ def rgbt_dataset(batch_size: int,
                  shape=None
                  ):
 
-    transforms = t.Compose([
+    transforms = None
+    transforms2 = t.Compose([
         t.RandomHorizontalFlip(),
         t.RandomVerticalFlip(),
         # t.RandomRotation(15)
     ])
 
     trainset = RGBT(dir=data_path, subset=train_root, topo=topo,
-                    transform=transforms, aug_mult=aug_mult)
+                    ext=ext, transform=transforms, aug_mult=aug_mult)
     valset = RGBT(dir=data_path, subset=val_root, topo=topo,
-                  transform=transforms, aug_mult=aug_mult)
+                  ext=ext, transform=transforms, aug_mult=aug_mult)
     testset = RGBT(dir=data_path, subset=test_root, topo=topo,
-                   transform=transforms, aug_mult=aug_mult)
+                   ext=ext, transform=transforms, aug_mult=aug_mult)
 
     trainloaders = DataLoader(trainset, batch_size=batch_size, shuffle=True)
     valloaders = DataLoader(valset, batch_size=batch_size)
@@ -86,9 +88,3 @@ class RGBT(Dataset):
             mask_tensor = self.transform(mask_tensor)
 
         return image_tensor, mask_tensor
-
-
-# trainloaders, valloaders, testloader = rgbt_dataset(32)
-# for (inputs, targets) in (trainloaders):
-#     print(inputs, targets.mean())
-#     break
