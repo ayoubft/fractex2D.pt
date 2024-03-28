@@ -1,0 +1,1 @@
+> For the purpose of training, individual outcrop sites were divided into training sites (KL5, KB2, KB3, KB7, KL2_1), validation sites (KB9, KB11) and testing site (OG1). Chudasama et al. 2024
