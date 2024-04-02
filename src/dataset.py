@@ -22,7 +22,7 @@ def rgbt_dataset(batch_size: int,
                  ):
 
     transforms = None
-    transforms2 = t.Compose([
+    _ = t.Compose([
         t.RandomHorizontalFlip(),
         t.RandomVerticalFlip(),
         # t.RandomRotation(15)
