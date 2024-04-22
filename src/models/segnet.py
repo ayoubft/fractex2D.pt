@@ -130,9 +130,9 @@ class UpDSConv3(nn.Module):
 class SegNet(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size):
         super().__init__()
-        self.out_channels = out_channels
+
         self.bn_input = nn.BatchNorm2d(in_channels)
-        self.dc1 = DownDSConv2(4, 64, kernel_size=kernel_size)
+        self.dc1 = DownDSConv2(in_channels, 64, kernel_size=kernel_size)
         self.dc2 = DownDSConv2(64, 128, kernel_size=kernel_size)
         self.dc3 = DownDSConv3(128, 256, kernel_size=kernel_size)
         self.dc4 = DownDSConv3(256, 512, kernel_size=kernel_size)
@@ -142,7 +142,7 @@ class SegNet(nn.Module):
         self.uc4 = UpDSConv3(512, 256, kernel_size=kernel_size)
         self.uc3 = UpDSConv3(256, 128, kernel_size=kernel_size)
         self.uc2 = UpDSConv2(128, 64, kernel_size=kernel_size)
-        self.uc1 = UpDSConv2(64, 1, kernel_size=kernel_size)
+        self.uc1 = UpDSConv2(64, out_channels, kernel_size=kernel_size)
 
     def forward(self, batch: torch.Tensor):
         x = self.bn_input(batch)
