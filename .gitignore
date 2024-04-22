@@ -10,6 +10,9 @@ model.pt
 
 #----------------- Other -----------------#
 outputs_tmp/
+outputs/
+multirun/
+slurm*
 
 #----------------- Scripts -----------------#
 scripts/srun*
