@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 
 def rgbt_dataset(batch_size: int,
                  topo,
+                 list,
                  ext,
                  data_path: str = 'data/jpg',
                  train_root: str = 'train',
@@ -28,11 +29,11 @@ def rgbt_dataset(batch_size: int,
         # t.RandomRotation(15)
     ])
 
-    trainset = RGBT(dir=data_path, subset=train_root, topo=topo,
+    trainset = RGBT(dir=data_path, subset=train_root, topo=topo, list=list,
                     ext=ext, transform=transforms, aug_mult=aug_mult)
-    valset = RGBT(dir=data_path, subset=val_root, topo=topo,
+    valset = RGBT(dir=data_path, subset=val_root, topo=topo, list=list,
                   ext=ext, transform=transforms, aug_mult=aug_mult)
-    testset = RGBT(dir=data_path, subset=test_root, topo=topo,
+    testset = RGBT(dir=data_path, subset=test_root, topo=topo, list=list,
                    ext=ext, transform=transforms, aug_mult=aug_mult)
 
     trainloaders = DataLoader(trainset, batch_size=batch_size, shuffle=True)
@@ -45,17 +46,32 @@ def rgbt_dataset(batch_size: int,
 class RGBT(Dataset):
     """Load RGB + Topography"""
 
-    def __init__(self, dir: str, subset: str, topo, ext='jpg',
+    def __init__(self, dir: str, subset: str, topo, list=False, ext='jpg',
                  transform=None, aug_mult=1):
 
-        self.images = sorted(
-            [os.path.join(dir, subset, 'image', fname)
-             for fname in os.listdir(os.path.join(dir, subset, 'image'))
-             if fname.endswith(ext)])
-        self.masks = sorted(
-            [os.path.join(dir, subset, 'gt', fname)
-             for fname in os.listdir(os.path.join(dir, subset, 'gt'))
-             if fname.endswith(ext)])
+        if list:
+            fnames = []
+            with open(os.path.join(dir, subset, 'list.txt'), 'r') as f:
+                for line in f:
+                    fnames.append(line.strip())
+
+            self.images = sorted(
+                [os.path.join(dir, subset, 'image', fname)
+                 for fname in fnames if fname.endswith(ext)])
+            self.masks = sorted(
+                [os.path.join(dir, subset, 'gt', fname)
+                 for fname in fnames if fname.endswith(ext)])
+
+        if not list:
+            self.images = sorted(
+                [os.path.join(dir, subset, 'image', fname)
+                 for fname in os.listdir(os.path.join(dir, subset, 'image'))
+                 if fname.endswith(ext)])
+            self.masks = sorted(
+                [os.path.join(dir, subset, 'gt', fname)
+                 for fname in os.listdir(os.path.join(dir, subset, 'gt'))
+                 if fname.endswith(ext)])
+
         self.topo = topo
         self.transform = transform
         self.aug_mult = aug_mult
