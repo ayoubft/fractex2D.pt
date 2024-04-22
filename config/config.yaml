@@ -8,7 +8,7 @@ aug_mult: 3  # augmentation multiplier *transforms*
 
 defaults:
   - _self_
-  - dataset: rgb_matteo_21
+  - dataset: ovaskainen23
   - model: deeplabv3plus  #
   - loss: dice  #
   - optimizer: adam
@@ -16,7 +16,7 @@ defaults:
 #------------------------- Hydra Config ------------------------#
 hydra:
   job:
-    name: deep3_rgb_dice_${batch_size}  #
+    name: deep3_dice_ova23_${batch_size}  #
   run:
     dir: outputs_tmp/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
   sweep:
