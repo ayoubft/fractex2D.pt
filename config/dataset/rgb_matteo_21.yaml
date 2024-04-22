@@ -1,6 +1,7 @@
 _target_: src.dataset.rgbt_dataset
 batch_size: ${batch_size}
 topo: False
+list: False
 ext: jpg
 data_path: 'data/matteo21/jpg'
 train_root: 'train'

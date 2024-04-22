@@ -1,6 +1,7 @@
 _target_: src.dataset.rgbt_dataset
 batch_size: ${batch_size}
 topo: False
+list: True
 ext: png
 data_path: 'data/ovaskainen23'
 train_root: 'train'
