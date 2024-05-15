@@ -1,3 +1,8 @@
+![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
+
+<a href="https://hydra.cc/"><img alt="Config: Hydra" src="https://img.shields.io/badge/Config-Hydra-89b8cd"></a>
+
+
 # Mapping of Geological Structures: A DL Approach
 
 This repo uses deep learning (U-Net, SegNet, DeepLabV3Plus) to automatically detect fractures from images.
