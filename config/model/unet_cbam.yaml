@@ -1,0 +1,4 @@
+_target_: src.models.unet_cbam.UNet
+in_channels: ${dataset.in_channels}
+out_channels: ${dataset.out_channels}
+init_features: 64
