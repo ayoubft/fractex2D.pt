@@ -7,10 +7,19 @@ import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
+from patchify import patchify, unpatchify
+from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 
 from src.train import eval_loop, train_loop
 from src.visualize import plot_example, plot_result
+
+img_paths = [
+    'data/test_ovas/OG1_sample_3.png',
+    'data/test_ovas/KL5_sample.png',
+    'data/test_ovas/KL5_sample_2.png',
+    'data/test_ovas/wilsons.png',
+             ]
 
 
 @hydra.main(config_name="config.yaml", config_path="config", version_base=None)
@@ -73,7 +82,7 @@ def main(cfg: DictConfig):
             # be sure to call model.eval() method before inferencing
             valid_loss_min = metrics["loss"]
 
-    # 5. Save your results
+    # 5. Plot test samples
     fig, axes = plt.subplots(3, 3, figsize=(13, 5))
     for ax in axes.flatten():
         plot_result(model, testloader, ax, cfg.dataset.shape,
@@ -81,6 +90,41 @@ def main(cfg: DictConfig):
     fig.tight_layout()
     fig.savefig(os.path.join(save_path, 'test.png'))
     writer.flush()
+
+    # 6. Predict test zone
+    model.eval()
+
+    for img_path in img_paths:
+        img = Image.open(img_path)
+        img = np.array(img)
+
+        patches = patchify(img, (256, 256, 3), step=256)
+
+        pred_patches = []
+        for i in range(patches.shape[0]):
+            for j in range(patches.shape[1]):
+
+                single_patch = patches[i, j, :, :, :, :]
+                single_patch = torch.Tensor(np.array(single_patch))
+                single_patch = single_patch.permute(0, 3, 1, 2)
+                single_patch /= 255
+
+                with torch.no_grad():
+                    patch_pred = model(single_patch.to(device))
+
+                pred_patches.append(patch_pred.cpu())
+
+        pred = np.array(pred_patches)
+        pred = np.reshape(pred,
+                          (patches.shape[0], patches.shape[1], 1, 256, 256, 1))
+        pred = unpatchify(pred, (img.shape[0], img.shape[1], 1))
+
+        pred *= 255
+        pred = Image.fromarray(np.uint8(pred.reshape(img.shape[0],
+                                                     img.shape[1])))
+
+        pred.save(os.path.join(save_path, 'pred_' +
+                               img_path.split('/')[-1]))
 
 
 if __name__ == "__main__":
