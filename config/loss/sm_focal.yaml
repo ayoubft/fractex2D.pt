@@ -1,0 +1,6 @@
+_target_: segmentation_models_pytorch.losses.FocalLoss
+mode: binary
+alpha: .25
+gamma: 2
+ignore_index: None
+normalized: False

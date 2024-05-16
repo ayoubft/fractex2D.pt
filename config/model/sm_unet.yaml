@@ -1,0 +1,6 @@
+_target_: segmentation_models_pytorch.Unet
+encoder_name: resnet152
+encoder_weights: imagenet
+in_channels: ${dataset.in_channels}
+classes: ${dataset.out_channels}
+activation: sigmoid

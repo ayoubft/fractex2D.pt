@@ -1,0 +1,5 @@
+_target_: segmentation_models_pytorch.losses.LovaszLoss
+# mode
+# per_image=False
+# ignore_index=None
+# from_logits=True
