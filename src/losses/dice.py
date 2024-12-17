@@ -35,8 +35,11 @@ class DiceBCELoss_with_logits(nn.Module):
         intersection = (inputs * targets).sum()
         dice_loss = 1 - (2.*intersection + smooth)/(inputs.sum() +
                                                     targets.sum() + smooth)
-        BCE = F.binary_cross_entropy_with_logits(inputs, targets,
-                                                 reduction='mean')
+
+        pos_weight = (targets == 0).sum() / (targets == 1).sum()
+
+        # BCE = F.binary_cross_entropy_with_logits(inputs, targets, reduction='mean')
+        BCE = F.binary_cross_entropy_with_logits(inputs, targets, pos_weight)
         loss_final = BCE * bce_weight + dice_loss * (1 - bce_weight)
         return loss_final
 

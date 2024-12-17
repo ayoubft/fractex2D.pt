@@ -7,7 +7,6 @@ data_path: 'data/ovaskainen23'
 train_root: 'train'
 val_root: 'valid'
 test_root: 'test'
-aug_mult: ${aug_mult}
 in_channels: 3
 out_channels: 1
 shape: 256

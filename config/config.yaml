@@ -1,22 +1,21 @@
 batch_size: 32
 no_cuda: False
 seed: 42
-epochs: 70  #
+epochs: 10  #
 classes: 2
 threshold: 0.4
-aug_mult: 1  # augmentation multiplier *transforms*
 
 defaults:
   - _self_
   - dataset: ovaskainen23
-  - model: sm_pan  #
-  - loss: dice  #
+  - model: sm_deeplabv3plus  #
+  - loss: mse  #
   - optimizer: adam
 
 #------------------------- Hydra Config ------------------------#
 hydra:
   job:
-    name: sm_pan  #
+    name: deepmse  #
   run:
     dir: outputs_tmp/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
   sweep:

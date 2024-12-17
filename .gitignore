@@ -17,6 +17,7 @@ slurm*
 #----------------- Scripts -----------------#
 scripts/srun*
 scripts/
+transformers/
 
 #----------------- Python files -----------------#
 # Byte-compiled / optimized / DLL files

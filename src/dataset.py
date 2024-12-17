@@ -16,7 +16,6 @@ def rgbt_dataset(batch_size: int,
                  train_root: str = 'train',
                  val_root: str = 'valid',
                  test_root: str = 'test',
-                 aug_mult: int = 1,
                  in_channels=None,
                  out_channels=None,
                  shape=None
@@ -30,11 +29,11 @@ def rgbt_dataset(batch_size: int,
     ])
 
     trainset = RGBT(dir=data_path, subset=train_root, topo=topo, list=list,
-                    ext=ext, transform=transforms, aug_mult=aug_mult)
+                    ext=ext, transform=transforms)
     valset = RGBT(dir=data_path, subset=val_root, topo=topo, list=list,
-                  ext=ext, transform=transforms, aug_mult=aug_mult)
+                  ext=ext, transform=transforms)
     testset = RGBT(dir=data_path, subset=test_root, topo=topo, list=list,
-                   ext=ext, transform=transforms, aug_mult=aug_mult)
+                   ext=ext, transform=transforms)
 
     trainloaders = DataLoader(trainset, batch_size=batch_size, shuffle=True)
     valloaders = DataLoader(valset, batch_size=batch_size)
@@ -47,7 +46,7 @@ class RGBT(Dataset):
     """Load RGB + Topography"""
 
     def __init__(self, dir: str, subset: str, topo, list=False, ext='jpg',
-                 transform=None, aug_mult=1):
+                 transform=None):
 
         if list:
             fnames = []
@@ -74,10 +73,9 @@ class RGBT(Dataset):
 
         self.topo = topo
         self.transform = transform
-        self.aug_mult = aug_mult
 
     def __len__(self):
-        return len(self.images) * self.aug_mult
+        return len(self.images)
 
     def __getitem__(self, index):
 
@@ -96,8 +94,8 @@ class RGBT(Dataset):
         # scale
         image_tensor /= 255
         mask_tensor /= 255
-        mask_tensor[mask_tensor > 0.01] = 1
-        mask_tensor[mask_tensor <= 0.01] = 0
+        # mask_tensor[mask_tensor > 0.01] = 1
+        # mask_tensor[mask_tensor <= 0.01] = 0
 
         if self.transform:
             image_tensor = self.transform(image_tensor)

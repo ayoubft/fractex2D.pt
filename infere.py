@@ -10,12 +10,14 @@ from PIL import Image
 
 # TODO: this was on ../
 
-model_path = 'multirun/ova23_dice/2024-05-15_15-28/model=sm_unetpp'
-model_name = 'sm_manet'
+model_path = '/users/afatihi/work-detect/fractex2D.pt/outputs_tmp/unet_rgb_dice_ova23_32/2024-04-02_14-25'
+model_name = 'unet-dice'
 img_paths = [
-    'data/test_ovas/OG1_sample_3.png',
-    'data/test_ovas/KL5_sample.png',
-    'data/test_ovas/KL5_sample_2.png',
+    'data/ldb/ortho-ldb-z1.png',
+    # 'data/test_ovas/OG1_sample_3.png',
+    # 'data/test_ovas/KL5_sample.png',
+    # 'data/test_ovas/KL5_sample_2.png',
+    # 'data/test_ovas/wilsons.png',
              ]
 
 
@@ -28,8 +30,16 @@ def main(cfg: DictConfig):
     model.load_state_dict(torch.load(os.path.join(model_path, 'model.pt')))
     model.eval()
 
+    patch_size = cfg.dataset.shape
+
     for img_path in img_paths:
-        img = Image.open(img_path)
+        img = Image.open(img_path).convert('RGB')
+        img_np = np.array(img)
+
+        SIZE_X = (img_np.shape[1]//patch_size)*patch_size
+        SIZE_Y = (img_np.shape[0]//patch_size)*patch_size
+        img = img.crop((0, 0, SIZE_X, SIZE_Y))
+
         img = np.array(img)
 
         patches = patchify(img, (256, 256, 3), step=256)
@@ -54,8 +64,8 @@ def main(cfg: DictConfig):
         pred = unpatchify(pred, (img.shape[0], img.shape[1], 1))
 
         pred *= 255
-        pred = Image.fromarray(np.uint8(pred.reshape(img.shape[0],
-                                                     img.shape[1])))
+        pred = Image.fromarray(np.uint8(pred.reshape(
+            img.shape[0], img.shape[1])) > cfg.threshold)
 
         pred.save(os.path.join(model_path, 'pred_' +
                                model_name + '_' + img_path.split('/')[-1]))

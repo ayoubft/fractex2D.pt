@@ -59,7 +59,6 @@ def main(cfg: DictConfig):
     valid_loss_min = np.inf
 
     for epoch in range(cfg.epochs):
-        # train for epoch
         train_loss = train_loop(
             model, optimizer, criterion, trainloader, device)
         writer.add_scalar("Loss/train", train_loss, epoch)
@@ -98,7 +97,9 @@ def main(cfg: DictConfig):
         img = Image.open(img_path)
         img = np.array(img)
 
-        patches = patchify(img, (256, 256, 3), step=256)
+        patch_shape = cfg.dataset.shape
+        patches = patchify(img, (patch_shape, patch_shape,
+                                 cfg.dataset.in_channels), step=256)  # !
 
         pred_patches = []
         for i in range(patches.shape[0]):
@@ -115,13 +116,13 @@ def main(cfg: DictConfig):
                 pred_patches.append(patch_pred.cpu())
 
         pred = np.array(pred_patches)
-        pred = np.reshape(pred,
-                          (patches.shape[0], patches.shape[1], 1, 256, 256, 1))
+        pred = np.reshape(pred, (patches.shape[0], patches.shape[1],
+                                 1, patch_shape, patch_shape, 1))  # !
         pred = unpatchify(pred, (img.shape[0], img.shape[1], 1))
 
         pred *= 255
-        pred = Image.fromarray(np.uint8(pred.reshape(img.shape[0],
-                                                     img.shape[1])))
+        pred = Image.fromarray(np.uint8(pred.reshape(
+            img.shape[0], img.shape[1])) > cfg.threshold)
 
         pred.save(os.path.join(save_path, 'pred_' +
                                img_path.split('/')[-1]))
