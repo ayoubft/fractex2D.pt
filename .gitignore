@@ -9,8 +9,8 @@ data/**/*.tiff
 model.pt
 
 #----------------- Other -----------------#
-outputs_tmp/
-outputs/
+outputs_tmp/**/*.png
+outputs/**/*.png
 multirun/
 slurm*
 

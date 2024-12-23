@@ -1,0 +1,33 @@
+batch_size: 32
+no_cuda: false
+seed: 42
+epochs: 100
+classes: 2
+threshold: 0.4
+aug_mult: 1
+dataset:
+  _target_: src.dataset.rgbt_dataset
+  batch_size: ${batch_size}
+  topo: false
+  list: true
+  ext: png
+  data_path: data/ovaskainen23
+  train_root: train
+  val_root: valid
+  test_root: test
+  aug_mult: ${aug_mult}
+  in_channels: 3
+  out_channels: 1
+  shape: 256
+model:
+  _target_: src.models.segnet.SegNet
+  in_channels: ${dataset.in_channels}
+  out_channels: ${dataset.out_channels}
+  kernel_size: 3
+loss:
+  _target_: src.losses.dice.DiceBCELoss
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.001
+  weight_decay: 0
+  amsgrad: true
