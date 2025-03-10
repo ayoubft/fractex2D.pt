@@ -9,7 +9,6 @@ from omegaconf import DictConfig, OmegaConf
 from patchify import patchify, unpatchify
 from PIL import Image
 from skimage import io
-import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.train import eval_loop, train_loop
