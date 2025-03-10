@@ -1,7 +1,7 @@
 batch_size: 32
 no_cuda: False
 seed: 42
-epochs: 30  #
+epochs: 100  #
 classes: 2
 threshold: 0.4
 
@@ -11,6 +11,7 @@ defaults:
   - model: unet  #
   - loss: mse  #
   - optimizer: adam
+  - scheduler: reduce_on_plateau
 
 #------------------------- Hydra Config ------------------------#
 hydra:

@@ -9,6 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from patchify import patchify, unpatchify
 from PIL import Image
 from skimage import io
+import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.train import eval_loop, train_loop
@@ -50,6 +51,7 @@ def main(cfg: DictConfig):
     model = model.to(device)
     criterion = instantiate(cfg.loss)
     optimizer = instantiate(cfg.optimizer, model.parameters())
+    scheduler = instantiate(cfg.scheduler, optimizer)
 
     train_loss = []
     # val_loss = []
@@ -61,8 +63,12 @@ def main(cfg: DictConfig):
         writer.add_scalar("Loss/train", train_loss, epoch)
 
         # evaluate on validation set
-        metrics = eval_loop(model, criterion, valloader, cfg.threshold, device,
-                            model_name)
+        before_lr = optimizer.param_groups[0]["lr"]
+        metrics = eval_loop(model, scheduler, criterion, valloader,
+                            cfg.threshold, device, model_name)
+        after_lr = optimizer.param_groups[0]["lr"]
+        print("Epoch %d: LR %.4f -> %.4f" % (epoch, before_lr, after_lr))
+
         writer.add_scalar("Loss/valid", metrics['loss'], epoch)
         writer.add_scalar("MSE/valid", metrics['mse'], epoch)
         writer.add_scalar("PSNR/valid", metrics['psnr'], epoch)

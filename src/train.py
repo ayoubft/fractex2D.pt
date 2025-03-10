@@ -31,8 +31,8 @@ def train_loop(model, optimizer, criterion, train_loader, device='cpu',
     return running_loss
 
 
-def eval_loop(model, criterion, eval_loader, threshold=False, device='cpu',
-              mdl=None):
+def eval_loop(model, scheduler, criterion, eval_loader,
+              threshold=False, device='cpu', mdl=None):
     running_loss = 0
     model.eval()
 
@@ -72,6 +72,9 @@ def eval_loop(model, criterion, eval_loader, threshold=False, device='cpu',
     ssim = sum(ssims)/len(ssims)
     ae = sum(aes)/len(aes)
     running_loss /= len(eval_loader.sampler)
+
+    scheduler.step(mse)
+
     return {
         'mse': mse,
         'psnr': psnr,
