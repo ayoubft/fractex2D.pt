@@ -9,10 +9,6 @@ from patchify import patchify, unpatchify
 from PIL import Image
 from skimage import io
 
-from src.visualize import plot_result
-from hydra.core.hydra_config import HydraConfig
-
-
 # TODO: this was on ../
 
 # model_path = '/users/afatihi/work-detect/fractex2D.pt/outputs_2/unet-mse/2025-01-28_12-41/'
@@ -41,7 +37,7 @@ def main(cfg: DictConfig):
 
     model = instantiate(cfg.model)
     model.load_state_dict(torch.load(os.path.join(model_path, 'model.pt'),
-                                     weights_only=True, map_location=torch.device('cpu')))
+                          weights_only=True, map_location=torch.device('cpu')))
     # , map_location=torch.device('cpu')  ## torch.load
     model.eval()
 
@@ -96,7 +92,7 @@ def main(cfg: DictConfig):
         # pred = Image.fromarray(np.uint8(pred.reshape(
         #     img.shape[0], img.shape[1])) > cfg.threshold)
         pred.save(os.path.join(save_path,
-                    f"pred_{img_path.split('/')[-1]}.png"))
+                  f"pred_{img_path.split('/')[-1]}.png"))
 
     # for img_path in img_paths:
     #     img = Image.open(img_path).convert('RGB')
@@ -126,7 +122,7 @@ def main(cfg: DictConfig):
 
     #     pred = np.array(pred_patches)
     #     pred = np.reshape(pred,
-    #                       (patches.shape[0], patches.shape[1], 1, 256, 256, 1))
+    #                      (patches.shape[0], patches.shape[1], 1, 256, 256,1))
     #     pred = unpatchify(pred, (img.shape[0], img.shape[1], 1))
 
     #     pred *= 255
