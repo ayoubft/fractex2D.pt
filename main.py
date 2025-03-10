@@ -1,7 +1,6 @@
 import os
 
 import hydra
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from hydra.core.hydra_config import HydraConfig
@@ -132,7 +131,7 @@ def main(cfg: DictConfig):
             # pred = Image.fromarray(np.uint8(pred.reshape(
             #     img.shape[0], img.shape[1])) > cfg.threshold)
             pred.save(os.path.join(save_path,
-                        f"pred_{img_path.split('/')[-1]}.png"))
+                      f"pred_{img_path.split('/')[-1]}.png"))
             # break
 
 
