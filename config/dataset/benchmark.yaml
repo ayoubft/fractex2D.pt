@@ -1,0 +1,5 @@
+_target_: src.dataset_benchm.all_datasets
+batch_size: ${batch_size}
+in_channels: 4
+out_channels: 1
+shape: 256

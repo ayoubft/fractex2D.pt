@@ -87,6 +87,7 @@ class RGBT(Dataset):
 
         image_tensor = torch.from_numpy(np.array(image).astype(np.float32))
         mask_tensor = torch.from_numpy(np.array(mask).astype(np.float32))
+        mask_tensor.unsqueeze_(0)
 
         # fix dimensions (C, H, W)
         image_tensor = image_tensor.permute(2, 0, 1)

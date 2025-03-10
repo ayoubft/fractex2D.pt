@@ -1,23 +1,41 @@
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
 
 
-def plot_example(loader, ax):
+def plot_example(loader, save_path):
+
+    fig, axes = plt.subplots(1, 3, figsize=(12, 5))
+
     images, masks = next(iter(loader))
     ind = np.random.choice(range(loader.batch_size))
 
-    image = images[ind].permute(1, 2, 0)[:, :, :3]
-    mask = masks[ind]
-    mask = Image.fromarray(np.asarray(mask, dtype=np.uint8)).convert('RGB')
-    mask = np.asarray(mask)
+    image = images[ind].permute(1, 2, 0)[:, :, :3] / 255.
+    dem = images[ind].permute(1, 2, 0)[:, :, 3]
+    mask = masks[ind].permute(1, 2, 0)
 
-    ax.imshow(np.hstack([image, mask]))
-    ax.set_title('Image / Mask')
-    ax.axis('off')
-    ax.grid([])
+    axes[0].imshow(np.array(image))
+    axes[0].set_title('Image')
+    axes[0].axis('off')
+    axes[0].grid([])
+
+    axes[1].imshow(dem, cmap='gray')
+    axes[1].set_title('DEM')
+    axes[1].axis('off')
+    axes[1].grid([])
+
+    axes[2].imshow(mask, cmap='gray')
+    axes[2].set_title('Mask')
+    axes[2].axis('off')
+    axes[2].grid([])
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(save_path, f'samples/{ind}.png'))
 
 
-def plot_result(model, loader, ax, shape, in_channels, device):
+def plot_result(model, loader, save_path, shape, in_channels, device):
+
     images, masks = next(iter(loader))
     ind = np.random.choice(range(loader.batch_size))
 
@@ -27,18 +45,25 @@ def plot_result(model, loader, ax, shape, in_channels, device):
     # loss = dice2(model(images[ind].view(1, 3, shape, shape).to(device)
     # ), mask[ind].to(device))
 
-    image = images[ind].permute(1, 2, 0)[:, :, :3]
-    mask = masks[ind]
-    mask = Image.fromarray(
-        np.asarray(mask * 255, dtype=np.uint8)).convert('RGB')
-    pred = Image.fromarray(
-        np.asarray(pred > .5, dtype=np.uint8)).convert('RGB')
+    image = images[ind].permute(1, 2, 0)[:, :, :3] / 255.
+    mask = masks[ind].permute(1, 2, 0)
 
-    mask = np.asarray(mask)
-    pred = np.asarray(pred)
+    fig, axes = plt.subplots(1, 3, figsize=(12, 5))
 
-    ax.imshow(np.hstack([image, mask, pred]))
-    ax.set_title('Image / Target / Prediction')
-    # loss = {round(float(loss), 3)}')
-    ax.axis('off')
-    ax.grid([])
+    axes[0].imshow(np.array(image))
+    axes[0].set_title('Image')
+    axes[0].axis('off')
+    axes[0].grid([])
+
+    axes[1].imshow(mask, cmap='gray')
+    axes[1].set_title('Ground truth')
+    axes[1].axis('off')
+    axes[1].grid([])
+
+    axes[2].imshow(pred, cmap='gray')
+    axes[2].set_title('Prediction')
+    axes[2].axis('off')
+    axes[2].grid([])
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(save_path, f'predictions/{ind}.png'))

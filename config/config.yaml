@@ -1,23 +1,23 @@
 batch_size: 32
 no_cuda: False
 seed: 42
-epochs: 10  #
+epochs: 30  #
 classes: 2
 threshold: 0.4
 
 defaults:
   - _self_
-  - dataset: ovaskainen23
-  - model: sm_deeplabv3plus  #
+  - dataset: benchmark
+  - model: unet  #
   - loss: mse  #
   - optimizer: adam
 
 #------------------------- Hydra Config ------------------------#
 hydra:
   job:
-    name: deepmse  #
+    name: unet-mse  #
   run:
-    dir: outputs_tmp/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
+    dir: outputs_BM/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
   sweep:
-    dir: multirun/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
+    dir: multirun_BM/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
     subdir: ${hydra.job.override_dirname}

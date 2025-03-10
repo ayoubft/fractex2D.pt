@@ -1,20 +1,25 @@
 import torch
-from sklearn.metrics import accuracy_score, f1_score
+from .metrics import MSE, PSNR, SSIM, AE
 from tqdm.auto import tqdm
 
 
-def train_loop(model, optimizer, criterion, train_loader, device='cpu'):
+def train_loop(model, optimizer, criterion, train_loader, device='cpu',
+               mdl=None):
     running_loss = 0
     model.train()
     pbar = tqdm(train_loader, desc="Iterating over train data")
 
-    for images, masks in pbar:
+    for images, labels in pbar:
         images = images.to(device)
-        masks = masks.to(device)
+        labels = labels.to(device)
 
         # forward
-        out = model(images)
-        loss = criterion(out, masks)
+        if mdl == 'fcn_resnet101':
+            out = model(images)['out']
+        else:
+            out = model(images)
+
+        loss = criterion(out, labels)
         running_loss += loss.item()*images.shape[0]
 
         # optimize
@@ -26,21 +31,25 @@ def train_loop(model, optimizer, criterion, train_loader, device='cpu'):
     return running_loss
 
 
-def eval_loop(model, criterion, eval_loader, threshold=False, device='cpu'):
+def eval_loop(model, criterion, eval_loader, threshold=False, device='cpu',
+              mdl=None):
     running_loss = 0
     model.eval()
 
     with torch.no_grad():
-        accuracy, f1_scores = [], []
+        mses, psnrs, ssims, aes = [], [], [], []
         pbar = tqdm(eval_loader, desc='Iterating over evaluation data')
-        for imgs, masks in pbar:
+        for imgs, labels in pbar:
             # pass to device
             imgs = imgs.to(device)
-            masks = masks.to(device)
+            labels = labels.to(device)
 
             # forward
-            out = model(imgs)
-            loss = criterion(out, masks)
+            if mdl == 'fcn_resnet101':
+                out = model(imgs)['out']
+            else:
+                out = model(imgs)
+            loss = criterion(out, labels)
             running_loss += loss.item()*imgs.shape[0]
 
             # calculate predictions using output
@@ -50,15 +59,22 @@ def eval_loop(model, criterion, eval_loader, threshold=False, device='cpu'):
             else:
                 predicted = (out > threshold).float()
 
-            predicted = predicted.view(-1).cpu().numpy()
-            labels = masks.view(-1).cpu().numpy()
-            accuracy.append(accuracy_score(labels, predicted))
-            f1_scores.append(f1_score(labels, predicted))
+            predicted = predicted.cpu()  # .numpy()
+            labels = labels.cpu()  # .numpy()
 
-    acc = sum(accuracy)/len(accuracy)
-    f1 = sum(f1_scores)/len(f1_scores)
+            mses.append(MSE()(predicted, labels).item())
+            psnrs.append(PSNR()(predicted, labels).item())
+            ssims.append(SSIM()(predicted, labels).item())
+            aes.append(AE()(predicted, labels).item())
+
+    mse = sum(mses)/len(mses)
+    psnr = sum(psnrs)/len(psnrs)
+    ssim = sum(ssims)/len(ssims)
+    ae = sum(aes)/len(aes)
     running_loss /= len(eval_loader.sampler)
     return {
-        'accuracy': acc,
-        'f1_macro': f1,
+        'mse': mse,
+        'psnr': psnr,
+        'ssim': ssim,
+        'ae': ae,
         'loss': running_loss}
