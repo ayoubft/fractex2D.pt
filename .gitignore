@@ -4,6 +4,7 @@ data/**/*.jpeg
 data/**/*.png
 data/**/*.tif
 data/**/*.tiff
+data/**/*.txt
 
 #----------------- Model files -----------------#
 model.pt
@@ -11,8 +12,9 @@ model.pt
 #----------------- Other -----------------#
 outputs_tmp/**/*.png
 outputs/**/*.png
-multirun/
+multirun*/
 slurm*
+outputs*/
 
 #----------------- Scripts -----------------#
 scripts/srun*
