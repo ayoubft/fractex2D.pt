@@ -32,6 +32,7 @@ def plot_example(loader, save_path):
 
     fig.tight_layout()
     fig.savefig(os.path.join(save_path, f'samples/{ind}.png'))
+    plt.close()
 
 
 def plot_result(model, loader, save_path, shape, in_channels, device):
@@ -67,3 +68,4 @@ def plot_result(model, loader, save_path, shape, in_channels, device):
 
     fig.tight_layout()
     fig.savefig(os.path.join(save_path, f'predictions/{ind}.png'))
+    plt.close()
