@@ -8,10 +8,10 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from patchify import patchify, unpatchify
 from PIL import Image
+from ridge_detector import RidgeDetector
 from skimage import io
 from torch.utils.tensorboard import SummaryWriter
 
-from src.ridge_ import ridge_from_file
 from src.train import eval_loop, train_loop
 from src.visualize import plot_example, plot_result
 
@@ -136,14 +136,30 @@ def main(cfg: DictConfig):
 
             # pred = Image.fromarray(np.uint8(pred.reshape(
             #     img.shape[0], img.shape[1])) > cfg.threshold)
+
             pred_proba_path = os.path.join(
                 save_path, f"pred_proba_{img_path.split('/')[-1]}.png")
             pred.save(pred_proba_path)
 
-            pred_ridge_path = os.path.join(
-                save_path, f"pred_ridge_{img_path.split('/')[-1]}.png")
-            just_edges = ridge_from_file(pred_proba_path)
-            io.imsave(pred_ridge_path, (just_edges * 255).astype(np.uint8))
+            pred_ridge_path = f"pred_ridge_{img_path.split('/')[-1]}"
+
+            det = RidgeDetector(line_widths=[1, 2, 3, 4, 5],
+                                low_contrast=20, high_contrast=200,
+                                min_len=10, max_len=0,
+                                dark_line=0, estimate_width=0,
+                                extend_line=1, correct_pos=1,
+                                )
+
+            det.detect_lines(pred_proba_path)
+            det.save_results(save_path, pred_ridge_path)
+
+            # invert
+            ridge_det = io.imread(os.path.join(
+                save_path, f'{pred_ridge_path}_binary_contours.png'))
+            inverted = np.invert(ridge_det)
+            io.imsave(os.path.join(save_path, f'{pred_ridge_path}.png'),
+                      inverted)
+
             # break
 
 
