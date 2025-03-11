@@ -73,7 +73,7 @@ def eval_loop(model, scheduler, criterion, eval_loader,
     ae = sum(aes)/len(aes)
     running_loss /= len(eval_loader.sampler)
 
-    scheduler.step(mse)
+    # scheduler.step(mse)
 
     return {
         'mse': mse,
