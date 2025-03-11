@@ -29,7 +29,7 @@ DEFAULT_RIDGE_CONFIG = {
         "Display_results": False,
         "Preview": False,
         "Make_Binary": True,
-        "save_on_disk": True,
+        "save_on_disk": False,
     },
 }
 
