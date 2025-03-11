@@ -4,10 +4,8 @@ import numpy as np
 import torch
 import torchvision.transforms as t
 from PIL import Image
-from skimage import data, exposure, io
-from skimage.feature import hog
-from skimage.measure import find_contours
-from skimage.morphology import dilation, skeletonize, square, thin
+from skimage import io
+from skimage.morphology import dilation, square, thin
 from skimage.segmentation import expand_labels
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
