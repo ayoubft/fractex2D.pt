@@ -11,6 +11,7 @@ from PIL import Image
 from skimage import io
 from torch.utils.tensorboard import SummaryWriter
 
+from src.ridge_ import ridge_from_file
 from src.train import eval_loop, train_loop
 from src.visualize import plot_example, plot_result
 
@@ -135,8 +136,14 @@ def main(cfg: DictConfig):
 
             # pred = Image.fromarray(np.uint8(pred.reshape(
             #     img.shape[0], img.shape[1])) > cfg.threshold)
-            pred.save(os.path.join(save_path,
-                      f"pred_{img_path.split('/')[-1]}.png"))
+            pred_proba_path = os.path.join(
+                save_path, f"pred_proba_{img_path.split('/')[-1]}.png")
+            pred.save(pred_proba_path)
+
+            pred_ridge_path = os.path.join(
+                save_path, f"pred_ridge_{img_path.split('/')[-1]}.png")
+            just_edges = ridge_from_file(pred_proba_path)
+            io.imsave(pred_ridge_path, (just_edges * 255).astype(np.uint8))
             # break
 
 
