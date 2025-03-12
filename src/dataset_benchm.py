@@ -90,7 +90,7 @@ class OVAS(Dataset):
 
     def __init__(self, subset: str, use_list=True, topo=False, transform=None):
 
-        directory = 'data/ovaskainen23'
+        directory = 'data/ovaskainen23_'
         ext_img = 'png'
         ext_ = 'tif'
 
@@ -298,11 +298,11 @@ def all_datasets(batch_size: int = 32,
                  shape: int = 256,
                  ):
 
-    transforms = None
-    _ = t.Compose([
+    transforms = t.Compose([
         t.RandomHorizontalFlip(),
         t.RandomVerticalFlip(),
-        # t.RandomRotation(15)
+        # t.ColorJitter(brightness=.5, hue=.3),
+        t.RandomRotation(degrees=(15, 70)),
     ])
 
     all_train = []
@@ -310,7 +310,7 @@ def all_datasets(batch_size: int = 32,
     all_test = []
 
     for name in datasets:
-        trainset_ = DATASETS[name]('train')
+        trainset_ = DATASETS[name]('train', transforms)
         all_train.append(trainset_)
 
         valset_ = DATASETS[name]('valid')
