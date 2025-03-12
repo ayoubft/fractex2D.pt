@@ -1,0 +1,4 @@
+_target_: torch.nn.L1Loss
+size_average: None
+reduce: None
+reduction: 'mean'
