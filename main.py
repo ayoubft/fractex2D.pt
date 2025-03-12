@@ -16,7 +16,7 @@ from src.train import eval_loop, train_loop
 from src.visualize import plot_example, plot_result
 
 img_paths = [
-    'data/test_ovas/og1-s3',
+    'data/test_ovas/kl5/kl5-s3',
              ]
 
 
