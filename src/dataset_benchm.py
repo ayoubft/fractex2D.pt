@@ -5,22 +5,42 @@ import torch
 import torchvision.transforms as t
 from PIL import Image
 from skimage import io
-from skimage.morphology import dilation, square, thin
+from skimage.morphology import dilation, square
 from skimage.segmentation import expand_labels
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 
-def dilate_labels(img):
+def dilate_labels(image):
+    """
+    Apply multi-scale dilation to labeled regions in an image.
 
-    img = thin(img, max_num_iter=3)
-    img = expand_labels(img, distance=2)
-    dil_msk_1 = dilation(img, square(5)) ^ img
-    dil_msk_2 = dilation(img, square(9)) ^ dil_msk_1 ^ img
-    dil_msk_3 = dilation(img, square(12)) ^ dil_msk_2 ^ dil_msk_1 ^ img
+    This function expands labeled regions in a segmented image and applies
+    three levels of morphological dilation using structuring elements of increasing sizes.
+    Each dilation mask is added to the original expanded image with decreasing weights.
 
-    out = img + dil_msk_1/3 + dil_msk_2/5 + dil_msk_3/9
+    Parameters
+    ------------
+    image (np.ndarray): The input image
 
-    return out
+    Returns
+    ------------
+    np.ndarray: The image with smoothed label boundaries.
+    """
+    # Expand labeled regions to fill small gaps between labels
+    expanded = expand_labels(image, distance=2)
+
+    # Perform three levels of dilation and create masks for each scale
+    dilated_mask_1 = dilation(expanded, square(5)) ^ expanded
+    dilated_mask_2 = dilation(expanded, square(9)) ^ dilated_mask_1 ^ expanded
+    dilated_mask_3 = dilation(expanded, square(12)) ^ dilated_mask_2 ^ dilated_mask_1 ^ expanded
+
+    # Blend the original and dilated masks with decreasing influence
+    blended = expanded + dilated_mask_1 / 3 + dilated_mask_2 / 5 + dilated_mask_3 / 9
+
+    # Convert to unsigned 8-bit integer format for compatibility
+    output = np.array(blended, dtype=np.uint8)
+
+    return output
 
 
 class RGBT(Dataset):
