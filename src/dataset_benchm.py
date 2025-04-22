@@ -10,6 +10,51 @@ from skimage.segmentation import expand_labels
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 
+def expand_wide_fractures_gt(img, gt, disk_size=2, thresh=30, gt_thresh=100, gt_ext='png'):
+    """
+    Expand the ground truth (gt) mask to include wide fractures in the image.
+    This function uses a maximum filter to identify large areas of dark pixels in the image,
+    and then dilates the gt mask to include these areas. The function also checks for spatial
+    contiguity with the gt mask, and only keeps objects that are spatially contiguous with
+    objects in the gt mask.
+
+    Parameters
+    -----------
+    img (numpy.ndarray): The input image.
+    gt (numpy.ndarray): The ground truth mask.
+    disk_size (int): The size of the disk used for morphological operations.
+    thresh (int): The threshold value for the maximum filter.
+    gt_thresh (int): The threshold value for the ground truth mask.
+    gt_ext (str): The file extension for the ground truth mask.
+
+    Returns
+    -----------
+    numpy.ndarray: The expanded ground truth mask.
+    Thanks to Sam Thiele
+    """
+    gray = img[...,1] # convert to greyscale (use green channel so vegetation is not so dark)
+    imax = maximum( gray, disk(disk_size)) # use a maximum filter to only keep large areas of dark pixels
+    #thresh = np.min(imax) * tmul # threshold based on the minimum remaining value in the image
+    msk = binary_dilation( imax < thresh, disk(disk_size)) # dilate again after threshold to "re-fill" the dark areas
+    
+    # add in gt again
+    gtg = np.logical_or( msk, gt > gt_thresh )
+    
+    # only keep objects that are spatially contiguous with objects in the gt
+    labeled_components, num_components = label(gtg, connectivity=1, return_num=True)
+    overlap_check = []
+    for component_id in range(1, num_components + 1): # Check overlap with gt
+        component_mask = labeled_components == component_id
+        if not np.any(gt[component_mask] > gt_thresh):
+            gtg[component_mask] = 0
+
+    if 'tif' in gt_ext:
+        new_gt = np.array(gt*255, dtype=np.uint8) | np.array(gtg*255, dtype=np.uint8)
+    else:
+        new_gt = np.array(gt, dtype=np.uint8) | np.array(gtg*255, dtype=np.uint8)
+    return new_gt
+
+
 def dilate_labels(image):
     """
     Apply multi-scale dilation to labeled regions in an image.
@@ -153,14 +198,15 @@ class OVAS(Dataset):
         data_idx = index % len(self.images)
 
         # mode = 'RGBA' if self.topo else 'RGB'
-        image = io.imread(self.images[data_idx])
+        image = io.imread(self.images[data_idx])[:, :, :3]
         gt = io.imread(self.masks[data_idx])
+        gt = expand_wide_fractures_gt(image, gt)
         gt = dilate_labels(gt)
         dem = io.imread(self.dems[data_idx])
         # image = Image.open(self.images[data_idx]).convert(mode)
         # mask = Image.open(self.masks[data_idx]).convert('L')
 
-        image_tensor = torch.from_numpy(image)[:, :, :3]
+        image_tensor = torch.from_numpy(image)
         mask_tensor = torch.from_numpy(gt).unsqueeze(0)
         dem_tensor = torch.from_numpy(dem)
 
@@ -210,6 +256,7 @@ class MATTEO(Dataset):
 
         image = io.imread(self.images[data_idx])
         gt = io.imread(self.masks[data_idx])
+        gt = expand_wide_fractures_gt(image, gt)
         gt = dilate_labels(gt)
 
         image_tensor = torch.from_numpy(image)  #[:, :, :3]
@@ -275,14 +322,15 @@ class SAMSU(Dataset):
         data_idx = index % len(self.images)
 
         # mode = 'RGBA' if self.topo else 'RGB'
-        image = io.imread(self.images[data_idx])
+        image = io.imread(self.images[data_idx])[:, :, :3]
         gt = io.imread(self.masks[data_idx])
+        gt = expand_wide_fractures_gt(image, gt)
         gt = dilate_labels(gt)
         dem = io.imread(self.dems[data_idx])
         # image = Image.open(self.images[data_idx]).convert(mode)
         # mask = Image.open(self.masks[data_idx]).convert('L')
 
-        image_tensor = torch.from_numpy(image)[:, :, :3]
+        image_tensor = torch.from_numpy(image)
         mask_tensor = torch.from_numpy(gt).unsqueeze(0)
         dem_tensor = torch.from_numpy(dem)
 
