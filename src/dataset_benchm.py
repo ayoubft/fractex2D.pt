@@ -5,7 +5,9 @@ import torch
 import torchvision.transforms as t
 from PIL import Image
 from skimage import io
-from skimage.morphology import dilation, square
+from skimage.filters.rank import maximum
+from skimage.measure import label
+from skimage.morphology import binary_dilation, dilation, disk, square
 from skimage.segmentation import expand_labels
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
