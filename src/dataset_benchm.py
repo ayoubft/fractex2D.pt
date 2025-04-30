@@ -201,8 +201,8 @@ class OVAS(Dataset):
 
         # mode = 'RGBA' if self.topo else 'RGB'
         image = io.imread(self.images[data_idx])[:, :, :3]
-        gt = io.imread(self.masks[data_idx])
-        gt = expand_wide_fractures_gt(image, gt)
+        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
+        gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
         gt = dilate_labels(gt)
         dem = io.imread(self.dems[data_idx])
         # image = Image.open(self.images[data_idx]).convert(mode)
@@ -257,8 +257,8 @@ class MATTEO(Dataset):
         data_idx = index % len(self.images)
 
         image = io.imread(self.images[data_idx])
-        gt = io.imread(self.masks[data_idx])
-        gt = expand_wide_fractures_gt(image, gt)
+        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
+        gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
         gt = dilate_labels(gt)
 
         image_tensor = torch.from_numpy(image)  #[:, :, :3]
@@ -325,8 +325,8 @@ class SAMSU(Dataset):
 
         # mode = 'RGBA' if self.topo else 'RGB'
         image = io.imread(self.images[data_idx])[:, :, :3]
-        gt = io.imread(self.masks[data_idx])
-        gt = expand_wide_fractures_gt(image, gt)
+        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
+        # gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
         gt = dilate_labels(gt)
         dem = io.imread(self.dems[data_idx])
         # image = Image.open(self.images[data_idx]).convert(mode)
@@ -371,7 +371,9 @@ def all_datasets(batch_size: int = 32,
     transforms = t.Compose([
         t.RandomHorizontalFlip(),
         t.RandomVerticalFlip(),
-        # t.ColorJitter(brightness=.5, hue=.3),
+        t.ColorJitter(brightness=.5, hue=.3),
+        t.RandomAutocontrast(),
+        t.RandomAdjustSharpness(sharpness_factor=2),
         t.RandomRotation(degrees=(15, 70)),
     ])
 
