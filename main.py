@@ -70,16 +70,27 @@ def main(cfg: DictConfig):
         print("Epoch %d: LR %.4f -> %.4f" % (epoch, before_lr, after_lr))
 
         writer.add_scalar("Loss/valid", metrics['loss'], epoch)
+
+        writer.add_scalar("ACC/valid", metrics['acc'], epoch)
+        writer.add_scalar("F1/valid", metrics['f1'], epoch)
+        writer.add_scalar("PREC/valid", metrics['prec'], epoch)
+        writer.add_scalar("REC/valid", metrics['rec'], epoch)
+        writer.add_scalar("ROC_AUC/valid", metrics['roc_auc'], epoch)
+
         writer.add_scalar("MSE/valid", metrics['mse'], epoch)
         writer.add_scalar("PSNR/valid", metrics['psnr'], epoch)
         writer.add_scalar("SSIM/valid", metrics['ssim'], epoch)
         writer.add_scalar("AE/valid", metrics['ae'], epoch)
 
         # show progress
-        print_string = f'Epoch: {epoch+1}, TrainLoss: {train_loss:.5f}, \
-            ValidLoss: {metrics["loss"]:.5f}, MSE: {metrics["mse"]:.5f}, \
-            PSNR: {metrics["psnr"]:.3f}, SSIM: {metrics["ssim"]:.5f},\
-            AE: {metrics["ae"]:.5f}'
+        print_string = (
+            f'Epoch: {epoch+1}, TrainLoss: {train_loss:.5f}, '
+            f'ValidLoss: {metrics["loss"]:.5f}, MSE: {metrics["mse"]:.5f}, '
+            # f'PSNR: {metrics["psnr"]:.3f}, SSIM: {metrics["ssim"]:.5f}, '
+            # f'AE: {metrics["ae"]:.5f}, ACC: {metrics["acc"]:.4f}, '
+            # f'REC: {metrics["rec"]:.4f}, PREC: {metrics["prec"]:.4f}, '
+            f'F1: {metrics["f1"]:.4f}, ROC_AUC: {metrics["roc_auc"]:.4f}'
+        )
         print(print_string)
 
         # save the model
