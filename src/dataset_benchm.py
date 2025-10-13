@@ -1,13 +1,14 @@
 import os
+import random
 
 import numpy as np
 import torch
-import torchvision.transforms as t
-from PIL import Image
+import torchvision.transforms.v2 as t
+import torchvision.transforms.v2.functional as TF
 from skimage import io
 from skimage.filters.rank import maximum
 from skimage.measure import label
-from skimage.morphology import binary_dilation, dilation, disk, square
+from skimage.morphology import binary_dilation, dilation, disk
 from skimage.segmentation import expand_labels
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
@@ -77,9 +78,9 @@ def dilate_labels(image):
     expanded = expand_labels(image, distance=2)
 
     # Perform three levels of dilation and create masks for each scale
-    dilated_mask_1 = dilation(expanded, square(5)) ^ expanded
-    dilated_mask_2 = dilation(expanded, square(9)) ^ dilated_mask_1 ^ expanded
-    dilated_mask_3 = dilation(expanded, square(12)) ^ dilated_mask_2 ^ dilated_mask_1 ^ expanded
+    dilated_mask_1 = dilation(expanded, disk(2)) ^ expanded
+    dilated_mask_2 = dilation(expanded, disk(5)) ^ dilated_mask_1 ^ expanded
+    dilated_mask_3 = dilation(expanded, disk(7)) ^ dilated_mask_2 ^ dilated_mask_1 ^ expanded
 
     # Blend the original and dilated masks with decreasing influence
     blended = expanded + dilated_mask_1 / 3 + dilated_mask_2 / 5 + dilated_mask_3 / 9
@@ -90,72 +91,10 @@ def dilate_labels(image):
     return output
 
 
-class RGBT(Dataset):
-    """Load RGB + Topography"""
-
-    def __init__(self, directory: str, subset: str, topo, use_list=False, ext='jpg',
-                 transform=None):
-
-        if use_list:
-            fnames = []
-            with open(os.path.join(directory, subset, 'list.txt'), 'r') as f:
-                for line in f:
-                    fnames.append(line.strip())
-
-            self.images = sorted(
-                [os.path.join(directory, subset, 'image', fname)
-                 for fname in fnames if fname.endswith(ext)])
-            self.masks = sorted(
-                [os.path.join(directory, subset, 'gt', fname)
-                 for fname in fnames if fname.endswith(ext)])
-
-        if not use_list:
-            self.images = sorted(
-                [os.path.join(directory, subset, 'image', fname)
-                 for fname in os.use_listdirectory(os.path.join(directory, subset, 'image'))
-                 if fname.endswith(ext)])
-            self.masks = sorted(
-                [os.path.join(directory, subset, 'gt', fname)
-                 for fname in os.use_listdirectory(os.path.join(directory, subset, 'gt'))
-                 if fname.endswith(ext)])
-
-        self.topo = topo
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.images)
-
-    def __getitem__(self, index):
-
-        data_idx = index % len(self.images)
-
-        mode = 'RGBA' if self.topo else 'RGB'
-        image = Image.open(self.images[data_idx]).convert(mode)
-        mask = Image.open(self.masks[data_idx]).convert('L')
-
-        image_tensor = torch.from_numpy(np.array(image).astype(np.float32))
-        mask_tensor = torch.from_numpy(np.array(mask).astype(np.float32))
-        mask_tensor.unsqueeze_(0)
-
-        # fix dimensions (C, H, W)
-        image_tensor = image_tensor.permute(2, 0, 1)
-
-        # scale
-        image_tensor /= 255
-        mask_tensor /= 255
-        # mask_tensor[mask_tensor > 0.01] = 1
-        # mask_tensor[mask_tensor <= 0.01] = 0
-
-        if self.transform:
-            image_tensor = self.transform(image_tensor)
-            mask_tensor = self.transform(mask_tensor)
-
-        return image_tensor, mask_tensor
-
-
 class OVAS(Dataset):
 
-    def __init__(self, subset: str, use_list=True, topo=False, transform=None):
+    def __init__(self, subset: str, use_list=True, topo=False, transform=False,
+                 expand=True, dilate=True, in_channels=3):
 
         directory = 'data/ovaskainen23_'
         ext_img = 'png'
@@ -191,6 +130,9 @@ class OVAS(Dataset):
 
         self.topo = topo
         self.transform = transform
+        self.expand = expand
+        self.dilate = dilate
+        self.in_channels = in_channels
 
     def __len__(self):
         return len(self.images)
@@ -202,37 +144,73 @@ class OVAS(Dataset):
         # mode = 'RGBA' if self.topo else 'RGB'
         image = io.imread(self.images[data_idx])[:, :, :3]
         gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
-        gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
-        gt = dilate_labels(gt)
-        dem = io.imread(self.dems[data_idx])
-        # image = Image.open(self.images[data_idx]).convert(mode)
-        # mask = Image.open(self.masks[data_idx]).convert('L')
-
+        if self.expand:
+            gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
         image_tensor = torch.from_numpy(image)
-        mask_tensor = torch.from_numpy(gt).unsqueeze(0)
-        dem_tensor = torch.from_numpy(dem)
+        if self.dilate:
+            gt = dilate_labels(gt)
+        mask_tensor = torch.from_numpy(gt).unsqueeze(0) / 255.
 
-        image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
+        if self.in_channels == 4:
+            dem = io.imread(self.dems[data_idx])
+            dem_tensor = torch.from_numpy(dem)
+            image_tensor = torch.cat(
+                (image_tensor, dem_tensor.unsqueeze(2)), 2)
 
         # fix dimensions (C, H, W)
-        image_tensor = image_tensor.permute(2, 0, 1)
+        image_tensor = image_tensor.permute(2, 0, 1) / 255.
 
-        # scale
-        # image_tensor /= 255
-        # mask_tensor /= 255
-        # mask_tensor[mask_tensor > 0.01] = 1
-        # mask_tensor[mask_tensor <= 0.01] = 0
-
+        if random.random() > 0.5:
+            image_tensor = TF.hflip(image_tensor)
+            mask_tensor = TF.hflip(mask_tensor)
+        if random.random() > 0.5:
+            image_tensor = TF.vflip(image_tensor)
+            mask_tensor = TF.vflip(mask_tensor)
         if self.transform:
-            image_tensor = self.transform(image_tensor)
-            mask_tensor = self.transform(mask_tensor)
+            if random.random() < 0.05:
+                sigma = random.uniform(0.1, 2.0)
+                image_tensor = TF.gaussian_blur(
+                    image_tensor, kernel_size=5, sigma=sigma)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 0.9)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_brightness(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.15:
+                factor = random.uniform(1.1, 1.7)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_brightness(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_contrast(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_contrast(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_saturation(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_saturation(image_tensor, factor)
 
         return image_tensor.float(), mask_tensor.float()
 
 
 class MATTEO(Dataset):
 
-    def __init__(self, subset: str, use_list=True, topo=False, transform=None):
+    def __init__(self, subset: str, use_list=True, topo=False, transform=None,
+                 expand=True, dilate=True, in_channels=3):
 
         directory = 'data/matteo21'
         ext = 'tif'
@@ -248,6 +226,9 @@ class MATTEO(Dataset):
 
         self.topo = topo
         self.transform = transform
+        self.expand = expand
+        self.dilate = dilate
+        self.in_channels = in_channels
 
     def __len__(self):
         return len(self.images)
@@ -256,30 +237,72 @@ class MATTEO(Dataset):
 
         data_idx = index % len(self.images)
 
-        image = io.imread(self.images[data_idx])
+        image = io.imread(self.images[data_idx]).astype(np.uint8)
         gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
-        gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
-        gt = dilate_labels(gt)
+        if self.expand:
+            gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
+        if self.dilate:
+            gt = dilate_labels(gt)
 
-        image_tensor = torch.from_numpy(image)  #[:, :, :3]
-        # dem_tensor = torch.from_numpy(image)[:, :, 3].unsqueeze(0)
-        mask_tensor = torch.from_numpy(gt).unsqueeze(0)
+        image_tensor = torch.from_numpy(image[:, :, :self.in_channels])
+        mask_tensor = torch.from_numpy(gt).unsqueeze(0) / 255.
 
         # image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
 
         # fix dimensions (C, H, W)
-        image_tensor = image_tensor.permute(2, 0, 1)
+        image_tensor = image_tensor.permute(2, 0, 1) / 255.
 
+        if random.random() > 0.5:
+            image_tensor = TF.hflip(image_tensor)
+            mask_tensor = TF.hflip(mask_tensor)
+        if random.random() > 0.5:
+            image_tensor = TF.vflip(image_tensor)
+            mask_tensor = TF.vflip(mask_tensor)
         if self.transform:
-            image_tensor = self.transform(image_tensor)
-            mask_tensor = self.transform(mask_tensor)
+            if random.random() < 0.05:
+                sigma = random.uniform(0.1, 2.0)
+                image_tensor = TF.gaussian_blur(
+                    image_tensor, kernel_size=5, sigma=sigma)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 0.9)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_brightness(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.15:
+                factor = random.uniform(1.1, 1.7)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_brightness(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_contrast(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_contrast(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_saturation(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_saturation(image_tensor, factor)
 
         return image_tensor.float(), mask_tensor.float()
 
 
 class SAMSU(Dataset):
 
-    def __init__(self, subset: str, use_list=True, topo=False, transform=None):
+    def __init__(self, subset: str, use_list=True, topo=False, transform=None,
+                 expand=True, dilate=True, in_channels=3):
 
         directory = 'data/samsu19'
         ext_img = 'png'
@@ -315,6 +338,9 @@ class SAMSU(Dataset):
 
         self.topo = topo
         self.transform = transform
+        self.expand = expand
+        self.dilate = dilate
+        self.in_channels = in_channels
 
     def __len__(self):
         return len(self.images)
@@ -325,31 +351,217 @@ class SAMSU(Dataset):
 
         # mode = 'RGBA' if self.topo else 'RGB'
         image = io.imread(self.images[data_idx])[:, :, :3]
-        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
-        # gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
-        gt = dilate_labels(gt)
-        dem = io.imread(self.dems[data_idx])
-        # image = Image.open(self.images[data_idx]).convert(mode)
-        # mask = Image.open(self.masks[data_idx]).convert('L')
-
         image_tensor = torch.from_numpy(image)
-        mask_tensor = torch.from_numpy(gt).unsqueeze(0)
-        dem_tensor = torch.from_numpy(dem)
+        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
+        if False:
+            gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
+        if self.dilate:
+            gt = dilate_labels(gt)
+        mask_tensor = torch.from_numpy(gt).unsqueeze(0) / 255.
 
-        image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
+        if self.in_channels == 4:
+            dem = io.imread(self.dems[data_idx])
+            dem_tensor = torch.from_numpy(dem)
+            image_tensor = torch.cat(
+                (image_tensor, dem_tensor.unsqueeze(2)), 2)
 
         # fix dimensions (C, H, W)
-        image_tensor = image_tensor.permute(2, 0, 1)
+        image_tensor = image_tensor.permute(2, 0, 1) / 255.
 
-        # scale
-        # image_tensor /= 255
-        # mask_tensor /= 255
-        # mask_tensor[mask_tensor > 0.01] = 1
-        # mask_tensor[mask_tensor <= 0.01] = 0
-
+        if random.random() > 0.5:
+            image_tensor = TF.hflip(image_tensor)
+            mask_tensor = TF.hflip(mask_tensor)
+        if random.random() > 0.5:
+            image_tensor = TF.vflip(image_tensor)
+            mask_tensor = TF.vflip(mask_tensor)
         if self.transform:
-            image_tensor = self.transform(image_tensor)
-            mask_tensor = self.transform(mask_tensor)
+            if random.random() < 0.05:
+                sigma = random.uniform(0.1, 2.0)
+                image_tensor = TF.gaussian_blur(
+                    image_tensor, kernel_size=5, sigma=sigma)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 0.9)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_brightness(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.15:
+                factor = random.uniform(1.1, 1.7)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_brightness(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_contrast(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_contrast(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                if image_tensor.shape[0] == 4:
+                    rgb = TF.adjust_saturation(image_tensor[:3], factor)
+                    image_tensor = torch.cat(
+                        [rgb, image_tensor[3:]], dim=0)
+                else:
+                    image_tensor = TF.adjust_saturation(image_tensor, factor)
+
+        return image_tensor.float(), mask_tensor.float()
+
+
+class GeoCrack(Dataset):
+
+    def __init__(self, subset: str, use_list=True, topo=False, transform=None,
+                 expand=True, dilate=True, in_channels=3):
+
+        directory = 'data/GeoCrack_'
+        ext = 'png'
+
+        self.images = sorted(
+            [os.path.join(directory, subset, 'image', fname)
+                for fname in os.listdir(os.path.join(directory, subset, 'image'))
+                if fname.endswith(ext)])
+        self.masks = sorted(
+            [os.path.join(directory, subset, 'gt', fname)
+                for fname in os.listdir(os.path.join(directory, subset, 'gt'))
+                if fname.endswith(ext)])
+
+        self.topo = topo
+        self.transform = transform
+        self.expand = expand
+        self.dilate = dilate
+        self.in_channels = in_channels
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+
+        data_idx = index % len(self.images)
+
+        image = io.imread(self.images[data_idx]).astype(np.uint8)
+        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
+        if False:
+            gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
+        if False:
+            gt = dilate_labels(gt)
+
+        image_tensor = torch.from_numpy(image[:, :, :self.in_channels])
+        mask_tensor = torch.from_numpy(gt).unsqueeze(0) / 255.
+
+        # image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
+
+        # fix dimensions (C, H, W)
+        image_tensor = image_tensor.permute(2, 0, 1) / 255.
+
+        if random.random() > 0.5:
+            image_tensor = TF.hflip(image_tensor)
+            mask_tensor = TF.hflip(mask_tensor)
+        if random.random() > 0.5:
+            image_tensor = TF.vflip(image_tensor)
+            mask_tensor = TF.vflip(mask_tensor)
+        if self.transform:
+            if random.random() < 0.05:
+                sigma = random.uniform(0.1, 2.0)
+                image_tensor = TF.gaussian_blur(
+                    image_tensor, kernel_size=5, sigma=sigma)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 0.9)
+                image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.15:
+                factor = random.uniform(1.1, 1.7)
+                image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                image_tensor = TF.adjust_contrast(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                image_tensor = TF.adjust_saturation(image_tensor, factor)
+
+        image_tensor = t.Resize(256)(image_tensor)
+        mask_tensor = t.Resize(256)(mask_tensor)
+
+        return image_tensor.float(), mask_tensor.float()
+
+
+class DIC(Dataset):
+
+    def __init__(self, subset: str, use_list=True, topo=False, transform=None,
+                 expand=False, dilate=False, in_channels=1):
+
+        directory = 'data/DIC'
+        ext = 'tif'
+        ext_mask = 'png'
+
+        self.images = sorted(
+            [os.path.join(directory, subset, 'image', fname)
+                for fname in os.listdir(os.path.join(directory, subset, 'image'))
+                if fname.endswith(ext)])
+        self.masks = sorted(
+            [os.path.join(directory, subset, 'gt', fname)
+                for fname in os.listdir(os.path.join(directory, subset, 'gt'))
+                if fname.endswith(ext_mask)])
+
+        self.topo = topo
+        self.transform = transform
+        self.expand = expand
+        self.dilate = dilate
+        self.in_channels = in_channels
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+
+        data_idx = index % len(self.images)
+
+        image = io.imread(self.images[data_idx]).astype(np.uint8)
+        gt = (io.imread(self.masks[data_idx])*255).astype(np.uint8)
+        if False:
+            gt = expand_wide_fractures_gt(image[:, :, :3].astype(np.uint8), gt)
+        if False:
+            gt = dilate_labels(gt)
+
+        image_tensor = torch.from_numpy(image).unsqueeze(0) / 255
+        mask_tensor = torch.from_numpy(gt).unsqueeze(0) / 255.
+
+        # image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
+
+        # fix dimensions (C, H, W)
+        # image_tensor = image_tensor.permute(2, 0, 1) / 255.
+
+        if random.random() > 0.5:
+            image_tensor = TF.hflip(image_tensor)
+            mask_tensor = TF.hflip(mask_tensor)
+        if random.random() > 0.5:
+            image_tensor = TF.vflip(image_tensor)
+            mask_tensor = TF.vflip(mask_tensor)
+        if self.transform:
+            if random.random() < 0.05:
+                sigma = random.uniform(0.1, 2.0)
+                image_tensor = TF.gaussian_blur(
+                    image_tensor, kernel_size=5, sigma=sigma)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 0.9)
+                image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.15:
+                factor = random.uniform(1.1, 1.7)
+                image_tensor = TF.adjust_brightness(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                image_tensor = TF.adjust_contrast(image_tensor, factor)
+            if random.random() < 0.05:
+                factor = random.uniform(0.7, 1.5)
+                image_tensor = TF.adjust_saturation(image_tensor, factor)
+
+        image_tensor = t.Resize(256)(image_tensor)
+        mask_tensor = t.Resize(256)(mask_tensor)
 
         return image_tensor.float(), mask_tensor.float()
 
@@ -358,78 +570,48 @@ DATASETS = {
     'ovaskainen23': OVAS,
     'matteo21': MATTEO,
     'samsu19': SAMSU,
+    'geocrack': GeoCrack,
+    'dic': DIC,
 }
 
 
 def all_datasets(batch_size: int = 32,
-                 datasets: list = ['samsu19', 'matteo21', 'ovaskainen23'],
+                 datasets: str = 'samsu19-matteo21-ovaskainen23',
                  in_channels: int = 4,  # #! to change
                  out_channels: int = 1,
                  shape: int = 256,
+                 expand: bool = True,
+                 dilate: bool = True,
+                 shuffle_train: bool = True,
+                 do_transform: bool = True,
                  ):
 
-    transforms = t.Compose([
-        t.RandomHorizontalFlip(),
-        t.RandomVerticalFlip(),
-        t.ColorJitter(brightness=.5, hue=.3),
-        t.RandomAutocontrast(),
-        t.RandomAdjustSharpness(sharpness_factor=2),
-        t.RandomRotation(degrees=(15, 70)),
-    ])
+    datasets = datasets.split('-')
 
     all_train = []
     all_val = []
     all_test = []
 
     for name in datasets:
-        trainset_ = DATASETS[name]('train', transforms)
+        trainset_ = DATASETS[name](subset='train', transform=do_transform,
+                                   expand=expand, dilate=dilate,
+                                   in_channels=in_channels)
         all_train.append(trainset_)
 
-        valset_ = DATASETS[name]('valid')
+        valset_ = DATASETS[name](subset='valid', expand=expand,
+                                 dilate=dilate, in_channels=in_channels)
         all_val.append(valset_)
 
-        testset_ = DATASETS[name]('test')
+        testset_ = DATASETS[name](subset='test', expand=expand,
+                                  dilate=dilate, in_channels=in_channels)
         all_test.append(testset_)
 
     trainset = ConcatDataset(all_train)
     valset = ConcatDataset(all_val)
     testset = ConcatDataset(all_test)
 
-    trainloaders = DataLoader(trainset, batch_size=batch_size, shuffle=True)
-    valloaders = DataLoader(valset, batch_size=batch_size)
-    testloader = DataLoader(testset, batch_size=batch_size)
-
-    return trainloaders, valloaders, testloader
-
-
-def rgbt_dataset(batch_size: int,
-                 topo,
-                 use_list,
-                 ext,
-                 data_path: list = ['data/jpg', 'data/jpg'],
-                 train_root: str = 'train',
-                 val_root: str = 'valid',
-                 test_root: str = 'test',
-                 in_channels=None,
-                 out_channels=None,
-                 shape=None
-                 ):
-
-    transforms = None
-    _ = t.Compose([
-        t.RandomHorizontalFlip(),
-        t.RandomVerticalFlip(),
-        # t.RandomRotation(15)
-    ])
-
-    trainset = RGBT(directory=data_path, subset=train_root, topo=topo,
-                    use_list=use_list, ext=ext, transform=transforms)
-    valset = RGBT(directory=data_path, subset=val_root, topo=topo, use_list=use_list,
-                  ext=ext, transform=transforms)
-    testset = RGBT(directory=data_path, subset=test_root, topo=topo,
-                   use_list=use_list, ext=ext, transform=transforms)
-
-    trainloaders = DataLoader(trainset, batch_size=batch_size, shuffle=True)
+    trainloaders = DataLoader(trainset, batch_size=batch_size,
+                              shuffle=shuffle_train)
     valloaders = DataLoader(valset, batch_size=batch_size)
     testloader = DataLoader(testset, batch_size=batch_size)
 

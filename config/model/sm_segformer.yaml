@@ -3,6 +3,6 @@ encoder_name: resnet152
 encoder_depth: 5
 encoder_weights: imagenet
 decoder_segmentation_channels: 256
-in_channels: ${dataset.in_channels}
-classes: ${dataset.out_channels}
+in_channels: ${in_channels}
+classes: ${out_channels}
 activation: sigmoid

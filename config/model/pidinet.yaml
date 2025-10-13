@@ -1,0 +1,5 @@
+_target_: src.models.pidinet.PiDiNet
+inplane: 60
+pdcs: 
+  _target_: src.models.pidinet_config.config_model
+  model: baseline

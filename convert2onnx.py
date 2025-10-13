@@ -6,15 +6,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 
 
-model_path = '/users/afatihi/work-detect/fractex2D.pt/outputs_tmp/unet_rgb_dice_ova23_32/2024-04-02_14-25'
-model_name = 'unet-dice'
-img_paths = [
-    'data/ldb/ortho-ldb-z1.png',
-    # 'data/test_ovas/OG1_sample_3.png',
-    # 'data/test_ovas/KL5_sample.png',
-    # 'data/test_ovas/KL5_sample_2.png',
-    # 'data/test_ovas/wilsons.png',
-             ]
+model_path = '/users/afatihi/work-detect/fractex2D.pt/outputs_BM_/unet-huber-rmspro-0.1/2025-08-07_09-28'
 
 
 @hydra.main(config_name="config.yaml",
@@ -37,7 +29,7 @@ def main(cfg: DictConfig):
 
     torch.onnx.export(model,
                       x,  # model input
-                      f'onnx/{model_name}.onnx',  # where to save the model
+                      f'{model_path}/model.onnx',  # where to save the model
                       export_params=True,
                       opset_version=15,
                       input_names=['input'],

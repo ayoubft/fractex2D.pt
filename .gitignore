@@ -15,6 +15,10 @@ outputs/**/*.png
 multirun*/
 slurm*
 outputs*/
+*/temp*/
+temp/
+toy-grid-search-fractex/
+misc/
 
 #----------------- Scripts -----------------#
 scripts/srun*

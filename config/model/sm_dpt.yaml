@@ -1,0 +1,10 @@
+_target_: segmentation_models_pytorch.DPT
+encoder_name: tu-vit_base_patch16_224.augreg_in21k
+encoder_depth: 4
+encoder_weights: imagenet
+decoder_readout: cat
+decoder_intermediate_channels: (256, 512, 1024, 1024)
+decoder_fusion_channels: 256
+in_channels: ${in_channels}
+classes: ${out_channels}
+activation: sigmoid

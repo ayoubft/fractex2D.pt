@@ -1,1 +1,1 @@
-_target_: src.losses.dice.DiceBCELoss
+_target_: src.losses.dice.DiceLoss

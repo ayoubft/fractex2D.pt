@@ -1,0 +1,10 @@
+_target_: src.dataset_benchm.all_datasets
+datasets: 'geocrack'
+batch_size: ${batch_size}
+in_channels: ${in_channels}
+out_channels: 1
+shape: 256
+expand: False
+dilate: False
+shuffle_train: True
+do_transform: True

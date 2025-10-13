@@ -1,5 +1,10 @@
 _target_: src.dataset_benchm.all_datasets
+datasets: 'samsu19-matteo21-ovaskainen23'
 batch_size: ${batch_size}
-in_channels: 4
+in_channels: ${in_channels}
 out_channels: 1
 shape: 256
+expand: True
+dilate: True
+shuffle_train: True
+do_transform: True
