@@ -154,6 +154,7 @@ class OVAS(Dataset):
         if self.in_channels == 4:
             dem = io.imread(self.dems[data_idx])
             dem_tensor = torch.from_numpy(dem)
+            dem_tensor = (dem_tensor - dem_tensor.mean()) / (dem_tensor.std() + 1e-8)
             image_tensor = torch.cat(
                 (image_tensor, dem_tensor.unsqueeze(2)), 2)
 
@@ -244,10 +245,11 @@ class MATTEO(Dataset):
         if self.dilate:
             gt = dilate_labels(gt)
 
-        image_tensor = torch.from_numpy(image[:, :, :self.in_channels])
+        image_tensor = torch.from_numpy(image[:, :, :3])
+        dem_tensor = torch.from_numpy(image[:, :, 3])
+        dem_tensor = (dem_tensor - dem_tensor.mean()) / (dem_tensor.std() + 1e-8)
         mask_tensor = torch.from_numpy(gt).unsqueeze(0) / 255.
-
-        # image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
+        image_tensor = torch.cat((image_tensor, dem_tensor.unsqueeze(2)), 2)
 
         # fix dimensions (C, H, W)
         image_tensor = image_tensor.permute(2, 0, 1) / 255.
@@ -362,6 +364,7 @@ class SAMSU(Dataset):
         if self.in_channels == 4:
             dem = io.imread(self.dems[data_idx])
             dem_tensor = torch.from_numpy(dem)
+            dem_tensor = (dem_tensor - dem_tensor.mean()) / (dem_tensor.std() + 1e-8)
             image_tensor = torch.cat(
                 (image_tensor, dem_tensor.unsqueeze(2)), 2)
 
