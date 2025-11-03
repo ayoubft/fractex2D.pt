@@ -48,9 +48,8 @@ def main(cfg: DictConfig):
     print('Data loaded!')
 
     if True:
-        for _ in range(111):
+        for _ in range(11):
             plot_example(trainloader, save_path, cfg.in_channels)
-    return 0
 
     # 3. Define model
     model = instantiate(cfg.model)
@@ -99,27 +98,12 @@ def main(cfg: DictConfig):
                             'Validation': running_vloss},
                            epoch+1)
         print(f'Epoch {epoch}: loss: {train_loss}, vloss: {running_vloss}')
-        # val_metrics = eval_loop(model, scheduler, criterion, valloader,
-        #                         cfg.threshold, device, model_name)
-        # save_metrics(val_metrics, 'valid', writer, epoch)
-
-        # show progress
-        # print_string = (
-        #     f'Epoch: {epoch+1}, TrainLoss: {train_loss:.5f}, '
-        #     f'ValidLoss: {val_metrics["loss"]:.5f}, '
-        #     f'MSE: {val_metrics["mse"]:.5f}, IoU_n: {val_metrics["iou_nbg"]}, '
-        #     f'F1: {val_metrics["f1"]:.4f}, ROCac: {val_metrics["roc_auc"]:.4f}'
-        # )
-        # print(print_string)
 
         # save the model
         if running_vloss <= valid_loss_min:
             torch.save(model.state_dict(), os.path.join(save_path, 'model.pt'))
             valid_loss_min = running_vloss
             print(f"Saving model at this epoch: {epoch} as best model!")
-            # val_metrics['epoch'] = epoch
-            # with open(os.path.join(save_path, 'val_metrics.json'), 'w') as fp:
-            #     json.dump(val_metrics, fp)
 
     # !!. Load best model
     model = instantiate(cfg.model)
@@ -147,15 +131,23 @@ def main(cfg: DictConfig):
         for img_path in img_paths:
             img = io.imread(f'{img_path}.png')
             dem = io.imread(f'{img_path}-dem.tif')
-            img = np.concatenate((img[:, :, :3], np.expand_dims(dem, 2)), 2)
+            combined = np.concatenate((img[:, :, :3], np.expand_dims(dem, 2)), 2)
 
             patch_shape = cfg.dataset.shape
-            # SIZE_X = (img.shape[1]//patch_shape)*patch_shape
-            # SIZE_Y = (img.shape[0]//patch_shape)*patch_shape
-            # img = img[:SIZE_X, :SIZE_Y, :]
+            h, w, c = combined.shape
+            pad_h = (patch_shape - h % patch_shape) % patch_shape
+            pad_w = (patch_shape - w % patch_shape) % patch_shape
 
-            patches = patchify(img, (patch_shape, patch_shape,
-                                     cfg.in_channels), step=256)  # !
+            # pad so divisible by patch size
+            combined_padded = np.pad(
+                combined,
+                ((0, pad_h), (0, pad_w), (0, 0)),
+                mode="constant",
+                constant_values=0,
+            )
+
+            patches = patchify(combined_padded, (patch_shape, patch_shape,
+                               cfg.in_channels), step=256)  # !
 
             pred_patches = []
             for i in range(patches.shape[0]):
@@ -173,39 +165,17 @@ def main(cfg: DictConfig):
             pred = np.array(pred_patches)
             pred = np.reshape(pred, (patches.shape[0], patches.shape[1],
                                      1, patch_shape, patch_shape, 1))  # !
-            pred = unpatchify(pred, (img.shape[0], img.shape[1], 1))
+            pred = unpatchify(pred, combined_padded.shape[:2] + (1,))
+
+            pred = pred[:h, :w, :]
 
             pred *= 255
             pred = Image.fromarray(np.uint8(
                 pred.reshape(img.shape[0], img.shape[1])))
 
-            # pred = Image.fromarray(np.uint8(pred.reshape(
-            #     img.shape[0], img.shape[1])) > cfg.threshold)
-
             pred_proba_path = os.path.join(
                 save_path, f"pred_proba_{img_path.split('/')[-1]}.png")
             pred.save(pred_proba_path)
-
-            # pred_ridge_path = f"pred_ridge_{img_path.split('/')[-1]}"
-
-            # det = RidgeDetector(line_widths=[1, 2, 3, 4, 5],
-            #                     low_contrast=20, high_contrast=200,
-            #                     min_len=10, max_len=0,
-            #                     dark_line=0, estimate_width=0,
-            #                     extend_line=1, correct_pos=1,
-            #                     )
-
-            # det.detect_lines(pred_proba_path)
-            # det.save_results(save_path, pred_ridge_path)
-
-            # # invert
-            # ridge_det = io.imread(os.path.join(
-            #     save_path, f'{pred_ridge_path}_binary_contours.png'))
-            # inverted = np.invert(ridge_det)
-            # io.imsave(os.path.join(save_path, f'{pred_ridge_path}.png'),
-            #           inverted)
-
-            # break
 
 
 if __name__ == "__main__":
