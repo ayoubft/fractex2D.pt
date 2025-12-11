@@ -1,6 +1,5 @@
 _target_: segmentation_models_pytorch.MAnet
 encoder_name: resnet152
 encoder_weights: imagenet
-in_channels: ${dataset.in_channels}
-classes: ${dataset.out_channels}
-activation: sigmoid
+in_channels: ${in_channels}
+classes: ${out_channels}

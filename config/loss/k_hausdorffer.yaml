@@ -1,0 +1,4 @@
+_target_: kornia.losses.HausdorffERLoss
+alpha: 2.0
+k: 10
+reduction: 'mean'

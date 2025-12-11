@@ -1,0 +1,5 @@
+_target_: src.losses.iou.IoU_nobg
+# weight: None
+# size_average: None
+# reduce: None
+# reduction: 'mean'

@@ -1,0 +1,5 @@
+_target_: src.models.ternausnet.UNet16
+num_classes: 1
+num_filters: 64
+pretrained: True
+is_deconv: True

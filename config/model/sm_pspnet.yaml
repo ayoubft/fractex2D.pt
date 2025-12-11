@@ -1,0 +1,10 @@
+_target_: segmentation_models_pytorch.PSPNet
+encoder_name: resnet34
+encoder_weights: imagenet
+encoder_depth: 5
+psp_out_channels: 512
+decoder_use_norm: True
+psp_dropout: 0.2
+in_channels: ${in_channels}
+classes: ${out_channels}
+upsampling: 8

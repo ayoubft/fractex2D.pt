@@ -1,0 +1,5 @@
+_target_: src.models.unet2.UNet
+in_channels: ${in_channels}
+out_channels: ${out_channels}
+init_features: 64
+dropout: True

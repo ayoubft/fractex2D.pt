@@ -1,0 +1,3 @@
+_target_: src.models.segformer.Segformer
+channels: ${in_channels}
+num_classes: ${out_channels}

@@ -1,5 +1,5 @@
 _target_: segmentation_models_pytorch.losses.TverskyLoss
-# mode: binary
+mode: binary
 # classes=None
 # log_loss=False
 # from_logits=True

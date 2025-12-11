@@ -1,0 +1,5 @@
+_target_: src.JDTLosses.losses.jdt_loss.JDTLoss
+# weight: None
+# size_average: None
+# reduce: None
+# reduction: 'mean'

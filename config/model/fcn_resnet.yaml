@@ -1,0 +1,2 @@
+_target_: torchvision.models.segmentation.fcn_resnet101
+num_classes: ${classes}

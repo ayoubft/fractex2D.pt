@@ -1,0 +1,8 @@
+_target_: segmentation_models_pytorch.utils.losses.JaccardLoss
+# mode: binary
+# classes=None
+# log_loss=False
+# from_logits=True
+# smooth=0.0
+# ignore_index=None
+# eps=1e-07

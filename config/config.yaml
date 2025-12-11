@@ -1,23 +1,28 @@
 batch_size: 32
 no_cuda: False
 seed: 42
-epochs: 10  #
+epochs: 111 #
 classes: 2
-threshold: 0.4
+threshold: 0.1
+param: 48.  # pos_weight!
+in_channels: 4
+out_channels: 1
+ignore_index: None # 0, 1, None [eval_loop]
 
 defaults:
   - _self_
-  - dataset: ovaskainen23
-  - model: sm_deeplabv3plus  #
-  - loss: mse  #
-  - optimizer: adam
+  - dataset: benchmark
+  - model: unet  #
+  - loss: huber  #
+  - optimizer: rmsprop
+  - scheduler: reduce_on_plateau
 
 #------------------------- Hydra Config ------------------------#
 hydra:
   job:
-    name: deepmse  #
+    name: unet-huber-rmspro-0.1  #
   run:
-    dir: outputs_tmp/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
+    dir: outputs_BM_/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
   sweep:
-    dir: multirun/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
+    dir: multirun_BM_/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
     subdir: ${hydra.job.override_dirname}
