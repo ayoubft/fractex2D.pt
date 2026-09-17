@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 import itertools
 
-model_path = ('//users/afatihi/work-detect/fractex2D.pt/outputs_BM_/unet-huber-rmspro-0.1/2025-08-07_09-28')
+# model_path = ('/users/afatihi/work-detect/fractex2D.pt/outputs_BM_/unet-huber-rmspro-0.1/2025-08-07_09-28')
+model_path = ('/users/afatihi/work-detect/fractex2D.pt/multirun_BM_/segformer/2025-08-30_16-50/model=sm_segformer')
 
 model_name = 'test'
 
@@ -18,7 +19,7 @@ model_name = 'test'
             version_base=None)
 def main(cfg: DictConfig):
 
-    datasets = ['ovaskainen23']  #['samsu19', 'matteo21', 'ovaskainen23']
+    datasets = ['samsu19', 'matteo21', 'ovaskainen23']
     aims = ['fp', 'fn']
     J = 100
 

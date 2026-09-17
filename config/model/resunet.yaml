@@ -1,0 +1,4 @@
+_target_: src.models.custom.ResNet34_UNet
+in_channels: ${in_channels}
+out_channels: ${out_channels}
+init_features: 64

@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
+# 0.8*binary_cross_entropy + 0.2*(1 – dice_coeff).
+
 
 class DiceBCELoss(nn.Module):
     def __init__(self, weight=None, size_average=True):
@@ -8,10 +10,12 @@ class DiceBCELoss(nn.Module):
 
     def forward(self, inputs, targets, smooth=1):
 
-        bce_weight = 0.5
+        bce_weight = 0.8
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
+
+        print(targets.min(), targets.max())
 
         intersection = (inputs * targets).sum()
         dice_loss = 1 - (2.*intersection + smooth)/(inputs.sum() +
@@ -42,7 +46,7 @@ class DiceBCELoss_with_logits(nn.Module):
 
     def forward(self, inputs, targets, smooth=1):
 
-        bce_weight = 0.5
+        bce_weight = 0.8
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)

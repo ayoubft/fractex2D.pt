@@ -6,7 +6,9 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 
 
-model_path = '/users/afatihi/work-detect/fractex2D.pt/outputs_BM_/unet-huber-rmspro-0.1/2025-08-07_09-28'
+model_path = '/users/afatihi/work-detect/fractex2D.pt/multirun_BM_/segformer-mit_b0/2025-08-31_12-17/model=sm_segformer'
+# '/users/afatihi/work-detect/fractex2D.pt/multirun_BM_/segformer-mit_b0/2025-08-31_12-17/model=sm_segformer'
+
 
 
 @hydra.main(config_name="config.yaml",

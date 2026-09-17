@@ -12,15 +12,15 @@ ignore_index: None # 0, 1, None [eval_loop]
 defaults:
   - _self_
   - dataset: benchmark
-  - model: unet  #
-  - loss: huber  #
-  - optimizer: rmsprop
+  - model: sm_unet  #
+  - loss: dice_logit  #
+  - optimizer: adam
   - scheduler: reduce_on_plateau
 
 #------------------------- Hydra Config ------------------------#
 hydra:
   job:
-    name: unet-huber-rmspro-0.1  #
+    name: sm_unet  #
   run:
     dir: outputs_BM_/${hydra.job.name}/${now:%Y-%m-%d_%H-%M}
   sweep:

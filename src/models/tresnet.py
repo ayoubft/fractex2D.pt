@@ -1,5 +1,14 @@
-# code adapted from
-# https://github.com/ternaus/TernausNet/
+"""
+Code adapted from 
+https://github.com/ternaus/TernausNet/blob/master/ternausnet/models.py
+@ARTICLE{arXiv:1801.05746,
+         author = {V. Iglovikov and A. Shvets},
+          title = {TernausNet: U-Net with VGG11 Encoder Pre-Trained on ImageNet for Image Segmentation},
+        journal = {ArXiv e-prints},
+         eprint = {1801.05746},
+           year = 2018
+        }
+"""
 
 import torch
 import torchvision

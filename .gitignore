@@ -5,6 +5,7 @@ data/**/*.png
 data/**/*.tif
 data/**/*.tiff
 data/**/*.txt
+data/**
 
 #----------------- Model files -----------------#
 model.pt
@@ -19,6 +20,11 @@ outputs*/
 temp/
 toy-grid-search-fractex/
 misc/
+CV_out/*
+CV_outputs/*
+CV_outputs copy/*
+*.out
+
 
 #----------------- Scripts -----------------#
 scripts/srun*

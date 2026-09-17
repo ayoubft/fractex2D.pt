@@ -5,4 +5,4 @@ encoder_weights: imagenet
 decoder_segmentation_channels: 256
 in_channels: ${in_channels}
 classes: ${out_channels}
-activation: sigmoid
+# activation: sigmoid
