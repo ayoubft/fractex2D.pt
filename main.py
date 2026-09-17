@@ -116,9 +116,13 @@ def main(cfg: DictConfig):
     model.eval()
     for img_path in img_paths:
         img = io.imread(f"{img_path}.png")
-        dem = io.imread(f"{img_path}-dem.tif")
-        dem = (dem - dem.min()) / (dem.max() - dem.min() + 1e-8)
-        combined = np.concatenate((img[:, :, :3], np.expand_dims(dem, 2)), axis=2)
+        if cfg.in_channels == 4:
+            dem = io.imread(f"{img_path}-dem.tif")
+            dem = (dem - dem.min()) / (dem.max() - dem.min() + 1e-8)
+            combined = np.concatenate((img[:, :, :3], np.expand_dims(dem, 2)), axis=2)
+        else:
+            # 3-channel models (e.g. SAM2) predict from RGB alone.
+            combined = img[:, :, :3]
 
         patch_size = cfg.dataset.shape
         h, w, c = combined.shape

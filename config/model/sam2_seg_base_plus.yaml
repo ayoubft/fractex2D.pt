@@ -1,0 +1,8 @@
+_target_: src.models.sam2_seg.SAM2SegNet
+in_channels: ${in_channels}   # must be 3: SAM2's patch embed is RGB-pretrained
+out_channels: ${out_channels}
+checkpoint: facebook/sam2.1-hiera-base-plus
+decoder_channels: 128
+freeze_encoder: false
+img_size: null                # null = feed the native 256px tile
+normalize: null               # null = plain [0,1] RGB, as every other model here
