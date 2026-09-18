@@ -14,6 +14,7 @@ Examples:
     python infere.py outputs_BM_/unet/2026-01-29_09-54 --no-raster threshold=0.3
 """
 import argparse
+import csv
 import json
 import sys
 from pathlib import Path
@@ -25,6 +26,10 @@ from hydra.utils import instantiate
 from patchify import patchify, unpatchify
 from PIL import Image
 from skimage import io
+from torchmetrics.classification import (
+    BinaryF1Score, BinaryJaccardIndex, BinaryPrecision, BinaryRecall,
+)
+from tqdm.auto import tqdm
 
 from src.train2 import eval_loop
 
@@ -59,6 +64,20 @@ def parse_args(argv):
     parser.add_argument(
         "--no-raster", action="store_true",
         help="Only evaluate the test set; skip full-raster prediction")
+    parser.add_argument(
+        "--sweep-thresholds", action="store_true",
+        help="Score a grid of thresholds in a single forward pass and report the "
+             "best by F1 and by IoU. Implies --no-raster.")
+    parser.add_argument(
+        "--threshold-grid", nargs=3, type=float, metavar=("START", "STOP", "STEP"),
+        default=[0.05, 0.95, 0.05],
+        help="Threshold grid for --sweep-thresholds, inclusive of STOP "
+             "(default: %(default)s)")
+    parser.add_argument(
+        "--split", choices=["test", "val"], default="test",
+        help="Which split to sweep thresholds on. 'test' matches the ODS convention "
+             "and the existing FscoreODS.py; 'val' avoids tuning on the split you "
+             "report. (default: %(default)s)")
     # anything unrecognised is passed through to Hydra as a config override
     return parser.parse_known_args(argv)
 
@@ -71,6 +90,45 @@ def load_cfg(run_dir: Path, overrides):
                          f"is {run_dir} really a main.py output dir?")
     with initialize_config_dir(config_dir=str(hydra_dir), version_base=None):
         return compose(config_name="config", overrides=list(overrides))
+
+
+def sweep_thresholds(model, loader, thresholds, device, model_name):
+    """Score every threshold from a single forward pass over `loader`.
+
+    The model's output does not depend on the threshold -- only the binarisation
+    of it does -- so running the network once and reusing the probabilities is
+    exactly equivalent to re-running inference per threshold, at 1/N the cost.
+
+    Binarisation matches src/train2.py eval_loop: strictly `> threshold` for the
+    prediction and `> 0.` for the label, so these numbers are directly
+    comparable with the ones main.py reports.
+    """
+    model.eval()
+    metrics = {
+        t: {"f1": BinaryF1Score().to(device),
+            "iou": BinaryJaccardIndex().to(device),
+            "prec": BinaryPrecision().to(device),
+            "rec": BinaryRecall().to(device)}
+        for t in thresholds
+    }
+
+    with torch.no_grad():
+        for imgs, labels in tqdm(loader, desc="Threshold sweep"):
+            imgs, labels = imgs.to(device), labels.to(device)
+            out = model(imgs)['out'] if model_name == 'fcn_resnet101' else model(imgs)
+            if model_name == 'Segformer':          # same quirk as eval_loop
+                out[out > 0.99] = 0.
+            labels_clf = (labels > 0.).float()
+            for t, ms in metrics.items():
+                pred_clf = (out > t).float()
+                for m in ms.values():
+                    m(pred_clf, labels_clf)
+
+    rows = []
+    for t in thresholds:
+        rows.append({"threshold": round(float(t), 4),
+                     **{k: float(m.compute()) for k, m in metrics[t].items()}})
+    return rows
 
 
 def predict_raster(model, img_stem, cfg, device):
@@ -136,7 +194,45 @@ def main(argv=None):
     optimizer = instantiate(cfg.optimizer, model.parameters())
     scheduler = instantiate(cfg.scheduler, optimizer)
 
-    _, _, testloader = instantiate(cfg.dataset)
+    _, valloader, testloader = instantiate(cfg.dataset)
+
+    # --- Threshold sweep ---
+    if args.sweep_thresholds:
+        start, stop, step = args.threshold_grid
+        grid = np.round(np.arange(start, stop + step / 2, step), 4)
+        loader = testloader if args.split == "test" else valloader
+        print(f"Sweeping {len(grid)} thresholds on the {args.split} split "
+              f"({grid[0]:.2f} to {grid[-1]:.2f} step {step:g}), single forward pass")
+
+        rows = sweep_thresholds(model, loader, grid, device, model_name)
+
+        print(f"\n{'threshold':>10} {'f1':>8} {'iou':>8} {'prec':>8} {'rec':>8}")
+        for r in rows:
+            print(f"{r['threshold']:>10.2f} {r['f1']:>8.4f} {r['iou']:>8.4f} "
+                  f"{r['prec']:>8.4f} {r['rec']:>8.4f}")
+
+        best_f1 = max(rows, key=lambda r: r["f1"])
+        best_iou = max(rows, key=lambda r: r["iou"])
+        print(f"\nbest F1  : {best_f1['f1']:.4f} at threshold {best_f1['threshold']:.2f}")
+        print(f"best IoU : {best_iou['iou']:.4f} at threshold {best_iou['threshold']:.2f}")
+        print(f"(config threshold is {cfg.threshold})")
+
+        stem = Path(args.checkpoint).stem
+        csv_file = out_dir / f"threshold_sweep_{args.split}_{stem}.csv"
+        with csv_file.open("w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+        print("Wrote", csv_file)
+
+        json_file = out_dir / f"threshold_sweep_{args.split}_{stem}.json"
+        json_file.write_text(json.dumps(
+            {"run_dir": str(run_dir), "checkpoint": args.checkpoint,
+             "model": model_name, "split": args.split,
+             "datasets": cfg.dataset.datasets, "config_threshold": cfg.threshold,
+             "best_f1": best_f1, "best_iou": best_iou, "grid": rows}, indent=2))
+        print("Wrote", json_file)
+        return
 
     # --- Evaluate on the test set ---
     test_metrics = eval_loop(model, scheduler, criterion, testloader,
