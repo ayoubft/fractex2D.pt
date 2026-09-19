@@ -115,6 +115,12 @@ def main(cfg: DictConfig):
     # --- 9. Predict test images ---
     model.eval()
     for img_path in img_paths:
+        # These rasters ship with the ovaskainen/KL5 benchmark. Other datasets
+        # (e.g. GeoCrack) don't have them, and a missing file here would throw
+        # away a finished training run, so skip instead.
+        if not Path(f"{img_path}.png").is_file():
+            print(f"Skipping missing raster: {img_path}.png")
+            continue
         img = io.imread(f"{img_path}.png")
         if cfg.in_channels == 4:
             dem = io.imread(f"{img_path}-dem.tif")

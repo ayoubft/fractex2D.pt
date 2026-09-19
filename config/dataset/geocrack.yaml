@@ -1,9 +1,22 @@
 _target_: src.dataset_benchm.all_datasets
 datasets: 'geocrack'
 batch_size: ${batch_size}
+# GeoCrack ships RGB only -- there is no DEM, so runs on this dataset need
+# `in_channels=3` on the command line (the repo default is 4).
 in_channels: ${in_channels}
 out_channels: 1
-shape: 256
+# GeoCrack tiles are natively 224x224. Keeping `shape` at 224 means nothing is
+# resampled: the images are untouched and the masks stay exactly binary. Set it
+# to 256 to match the other benchmark rows' tile size -- the image is then
+# upsampled bilinearly and the mask with nearest-neighbour (never bilinear,
+# which would ramp the label edges and, since eval_loop binarises labels at
+# `> 0.`, silently thicken every fracture).
+shape: 224
+# No label post-processing on GeoCrack. `expand` re-grows wide/dark fractures
+# from the green channel and `dilate` blurs label boundaries over a 7px disk;
+# both were tuned for the samsu19/matteo21/ovaskainen23 benchmark, whose GT is
+# hand-traced centre-lines. GeoCrack's masks already cover the fracture width,
+# so applying them would thicken the labels well past the real cracks.
 expand: False
 dilate: False
 shuffle_train: True

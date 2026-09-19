@@ -211,6 +211,7 @@ class BaseCrackDataset(Dataset):
         expand: bool = True,
         dilate: bool = True,
         in_channels: int = 3,
+        shape: int = 256,
     ):
         self.images = list(images)
         self.masks = list(masks)
@@ -221,9 +222,31 @@ class BaseCrackDataset(Dataset):
         self.expand = expand
         self.dilate = dilate
         self.in_channels = in_channels
+        self.shape = shape
 
     def __len__(self) -> int:
         return len(self.images)
+
+    def _resize_pair(
+        self, img: torch.Tensor, mask: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Resize an image/mask pair to self.shape, leaving the labels binary.
+
+        No-op when the tile is already the target size, which is the cheap and
+        lossless case. Otherwise the image is resampled bilinearly (with
+        antialiasing) while the mask uses nearest-neighbour: bilinear on a mask
+        smears each label edge into a ramp of intermediate values, and
+        `eval_loop` binarises labels with `> 0.`, so every one of those pixels
+        would count as fracture. That silently thickens the ground truth -- the
+        same effect the `dilate` flag applies on purpose.
+        """
+        if img.shape[-2:] == (self.shape, self.shape):
+            return img, mask
+        img = TF.resize(img, [self.shape, self.shape],
+                        interpolation=t.InterpolationMode.BILINEAR, antialias=True)
+        mask = TF.resize(mask, [self.shape, self.shape],
+                         interpolation=t.InterpolationMode.NEAREST_EXACT)
+        return img, mask
 
     def _load_pair(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -296,6 +319,7 @@ class OVAS(BaseCrackDataset):
         expand: bool = True,
         dilate: bool = True,
         in_channels: int = 3,
+        shape: int = 256,
     ):
         root = Path("data/ovaskainen23_") / subset
         ext_img = "png"
@@ -318,7 +342,7 @@ class OVAS(BaseCrackDataset):
             dems = sorted(path for path in (root / "dem").iterdir() if path.suffix.lower().lstrip(".") == ext_gt)
 
         super().__init__(images=images, masks=masks, dem_paths=dems, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
 
 
 class MATTEO(BaseCrackDataset):
@@ -333,6 +357,7 @@ class MATTEO(BaseCrackDataset):
         expand: bool = True,
         dilate: bool = True,
         in_channels: int = 3,
+        shape: int = 256,
     ):
         root = Path("data/matteo21") / subset
         ext = "tif"
@@ -346,7 +371,7 @@ class MATTEO(BaseCrackDataset):
         masks = sorted(root / "gt" / name for name in names)
 
         super().__init__(images=images, masks=masks, dem_paths=None, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
 
 
 class SAMSU(BaseCrackDataset):
@@ -361,6 +386,7 @@ class SAMSU(BaseCrackDataset):
         expand: bool = True,
         dilate: bool = True,
         in_channels: int = 3,
+        shape: int = 256,
     ):
         root = Path("data/samsu19") / subset
         ext_img = "png"
@@ -382,11 +408,16 @@ class SAMSU(BaseCrackDataset):
             dems = sorted(p for p in (root / "dem").iterdir() if p.suffix.lstrip(".") == ext_gt)
 
         super().__init__(images=images, masks=masks, dem_paths=dems, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
 
 
 class GeoCrack(BaseCrackDataset):
-    """GeoCrack dataset wrapper (simple PNG images)."""
+    """GeoCrack dataset wrapper (simple PNG images).
+
+    The tiles are natively 224x224 and the masks are strictly binary on disk.
+    With `shape: 224` (the config default) nothing is resampled at all; a larger
+    `shape` upsamples the tile, keeping the labels binary via `_resize_pair`.
+    """
 
     def __init__(
         self,
@@ -396,6 +427,7 @@ class GeoCrack(BaseCrackDataset):
         expand: bool = True,
         dilate: bool = True,
         in_channels: int = 3,
+        shape: int = 256,
     ):
         root = Path("data/GeoCrack_") / subset
         ext = "png"
@@ -404,13 +436,11 @@ class GeoCrack(BaseCrackDataset):
         masks = sorted(p for p in (root / "gt").iterdir() if p.suffix.lstrip(".") == ext)
 
         super().__init__(images=images, masks=masks, dem_paths=None, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img, mask = super().__getitem__(index)
-        # consistent resizing used originally
-        img = t.Resize(256)(img)
-        mask = t.Resize(256)(mask)
+        img, mask = self._resize_pair(img, mask)
         return img.float(), mask.float()
 
 
@@ -425,6 +455,7 @@ class DIC(BaseCrackDataset):
         expand: bool = False,
         dilate: bool = False,
         in_channels: int = 1,
+        shape: int = 256,
     ):
         root = Path("data/DIC") / subset
         ext_img = "tif"
@@ -434,7 +465,7 @@ class DIC(BaseCrackDataset):
         masks = sorted(p for p in (root / "gt").iterdir() if p.suffix.lstrip(".") == ext_mask)
 
         super().__init__(images=images, masks=masks, dem_paths=None, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
 
     def _load_pair(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -455,8 +486,7 @@ class DIC(BaseCrackDataset):
         if self.transform:
             img_tensor = _apply_random_photometric_augmentations(img_tensor)
 
-        img_tensor = t.Resize(256)(img_tensor)
-        mask_tensor = t.Resize(256)(mask_tensor)
+        img_tensor, mask_tensor = self._resize_pair(img_tensor, mask_tensor)
 
         return img_tensor.float(), mask_tensor.float()
 
@@ -492,7 +522,8 @@ def all_datasets(
         datasets: dash-separated dataset keys from DATASETS dict.
         in_channels: number of input channels requested (3 or 4).
         out_channels: number of output channels (kept for API compatibility).
-        shape: target shape (not used directly here; datasets may resize internally).
+        shape: target tile size; datasets resize to it only when their tiles
+            differ (images bilinear, masks nearest so labels stay binary).
         expand, dilate: whether to apply expand/dilate preprocessing.
         shuffle_train: whether to shuffle the training DataLoader.
         do_transform: whether to enable augmentations.
@@ -509,9 +540,9 @@ def all_datasets(
         if name not in DATASETS:
             raise KeyError(f"Unknown dataset key: {name}")
         DS = DATASETS[name]
-        all_train.append(DS(subset="train", transform=do_transform, expand=expand, dilate=dilate, in_channels=in_channels))
-        all_val.append(DS(subset="valid", transform=False, expand=expand, dilate=dilate, in_channels=in_channels))
-        all_test.append(DS(subset="test", transform=False, expand=expand, dilate=dilate, in_channels=in_channels))
+        all_train.append(DS(subset="train", transform=do_transform, expand=expand, dilate=dilate, in_channels=in_channels, shape=shape))
+        all_val.append(DS(subset="valid", transform=False, expand=expand, dilate=dilate, in_channels=in_channels, shape=shape))
+        all_test.append(DS(subset="test", transform=False, expand=expand, dilate=dilate, in_channels=in_channels, shape=shape))
 
     trainset = ConcatDataset(all_train)
     valset = ConcatDataset(all_val)
