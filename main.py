@@ -1,4 +1,7 @@
 import os
+import random
+import subprocess
+import time
 import warnings
 from pathlib import Path
 
@@ -28,9 +31,40 @@ img_paths = [
 ]
 
 
+def seed_everything(seed: int):
+    """Seed python/numpy/torch and make cuDNN deterministic where it can be.
+
+    Opt-in via `seed_everything=true`. The original runs only called
+    torch.manual_seed *after* building the data loaders and the model, so the
+    decoder initialisation and the (python `random`) augmentations were unseeded.
+    """
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # Some CUDA kernels (e.g. nearest-upsample backward) have no deterministic
+    # implementation; warn instead of crashing so those runs still go through.
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+def write_provenance(save_path: Path):
+    """Record the code version a run was produced with."""
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout
+    except OSError:
+        return
+    (save_path / "git_commit.txt").write_text(f"{head}\n{dirty}")
+
+
 @hydra.main(config_name="config.yaml", config_path="config", version_base=None)
 def main(cfg: DictConfig):
     """Train and evaluate model, generate plots, and predict test images."""
+    if cfg.get("seed_everything", False):
+        seed_everything(cfg.seed)
 
     # --- 1. Setup output directories ---
     print("Config:\n", OmegaConf.to_yaml(cfg))
@@ -38,6 +72,7 @@ def main(cfg: DictConfig):
     (save_path / 'samples').mkdir(exist_ok=True)
     (save_path / 'predictions').mkdir(exist_ok=True)
     print("Output dir:", save_path)
+    write_provenance(save_path)
 
     writer = SummaryWriter(save_path)
 
@@ -66,10 +101,13 @@ def main(cfg: DictConfig):
     scheduler = instantiate(cfg.scheduler, optimizer)
 
     valid_loss_min = np.inf
+    epoch_log = save_path / "epoch_log.csv"
+    epoch_log.write_text("epoch,train_loss,val_loss,seconds,saved_best\n")
 
     # --- 5. Train model ---
     for epoch in range(cfg.epochs):
         print(f"Starting epoch {epoch}")
+        t_epoch = time.time()
         train_loss = train_loop(model, optimizer, criterion, trainloader, device, cfg.model._target_.split('.')[-1])
         writer.add_scalar("Loss/train", train_loss, epoch)
 
@@ -87,10 +125,13 @@ def main(cfg: DictConfig):
         print(f"Epoch {epoch}: loss={train_loss:.4f}, vloss={running_vloss:.4f}")
 
         # Save best model
-        if running_vloss <= valid_loss_min:
+        saved = running_vloss <= valid_loss_min
+        if saved:
             torch.save(model.state_dict(), save_path / "model.pt")
             valid_loss_min = running_vloss
             print(f"Saved best model at epoch {epoch}")
+        with epoch_log.open("a") as fh:
+            fh.write(f"{epoch},{train_loss},{running_vloss},{time.time() - t_epoch:.1f},{int(saved)}\n")
 
     # Save final model
     torch.save(model.state_dict(), save_path / "final_model.pt")

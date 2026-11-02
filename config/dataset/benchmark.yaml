@@ -8,3 +8,5 @@ expand: True
 dilate: True
 shuffle_train: True
 do_transform: True
+deterministic_eval: False  # True: no random flips on val/test
+dem_mode: legacy           # see src/dataset_benchm.py DEM_MODES

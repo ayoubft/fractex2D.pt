@@ -188,6 +188,40 @@ def _read_mask(path: Path) -> np.ndarray:
     return arr
 
 
+# How the DEM channel is prepared before the whole image tensor is divided by 255.
+#
+#   legacy  -- the current default, kept for reproducibility: the DEM goes through
+#              _read_image (float32 -> uint8 cast) and is then min-max scaled. The
+#              ovaskainen23/samsu19 DEM tiles are float32 with sub-255 ranges
+#              (~0.4-0.7 and ~5.1-5.6), so the cast collapses each tile to a constant
+#              and min-max turns it into all zeros. matteo21 is unaffected (its DEM is
+#              band 4 of a 0-255 image).
+#   raw     -- the float DEM as stored (so raw/255 after the global scaling). This is
+#              the input contract of the released FraXet models (zenodo 17866853).
+#   zscore  -- per-tile z-score of the float DEM (commit c3dfbf0, Nov 2025).
+#   minmax  -- per-tile min-max of the float DEM, without the uint8 cast.
+DEM_MODES = ("legacy", "raw", "zscore", "minmax")
+
+
+def _prepare_dem(dem_path: Optional[Path], img_np: np.ndarray, mode: str) -> np.ndarray:
+    if mode not in DEM_MODES:
+        raise ValueError(f"dem_mode must be one of {DEM_MODES}, got {mode!r}")
+    if img_np.shape[2] >= 4:
+        dem = img_np[:, :, 3].astype(np.float32)
+    elif dem_path is None:
+        raise RuntimeError("Requested 4 input channels but no DEM found.")
+    elif mode == "legacy":
+        dem = _read_image(dem_path).astype(np.float32)
+    else:
+        dem = io.imread(str(dem_path)).astype(np.float32)
+
+    if mode in ("legacy", "minmax"):
+        return (dem - dem.min()) / (dem.max() - dem.min() + 1e-8)
+    if mode == "zscore":
+        return (dem - dem.mean()) / (dem.std() + 1e-8)
+    return dem
+
+
 # -------------------------
 # Dataset classes
 # -------------------------
@@ -212,6 +246,8 @@ class BaseCrackDataset(Dataset):
         dilate: bool = True,
         in_channels: int = 3,
         shape: int = 256,
+        random_flip: bool = True,
+        dem_mode: str = "legacy",
     ):
         self.images = list(images)
         self.masks = list(masks)
@@ -223,6 +259,10 @@ class BaseCrackDataset(Dataset):
         self.dilate = dilate
         self.in_channels = in_channels
         self.shape = shape
+        # random_flip=False makes val/test deterministic. The flips used to run on
+        # every split, so the same checkpoint scored differently from run to run.
+        self.random_flip = random_flip
+        self.dem_mode = dem_mode
 
     def __len__(self) -> int:
         return len(self.images)
@@ -267,16 +307,10 @@ class BaseCrackDataset(Dataset):
         # build image tensor. If dataset provides DEM as a separate file, append as 4th channel.
         img_tensor = torch.from_numpy(img_np[:, :, :3])
         if self.in_channels == 4:
-            # if DEM present inside the image array or as separate file, handle both cases
-            if img_np.shape[2] >= 4:
-                dem_np = img_np[:, :, 3].astype(np.float32)
-            elif self.dems is not None:
-                dem_np = _read_image(Path(self.dems[idx])).astype(np.float32)
-            else:
-                raise RuntimeError("Requested 4 input channels but no DEM found.")
-            # normalize DEM to [0,1]
+            # DEM either inside the image array or as a separate file; see DEM_MODES
+            dem_path = Path(self.dems[idx]) if self.dems is not None else None
+            dem_np = _prepare_dem(dem_path, img_np, self.dem_mode)
             dem_tensor = torch.from_numpy(dem_np).float()
-            dem_tensor = (dem_tensor - dem_tensor.min()) / (dem_tensor.max() - dem_tensor.min() + 1e-8)
             img_tensor = torch.cat((img_tensor, dem_tensor.unsqueeze(2)), axis=2)
 
         # reformat to C,H,W and normalize image to [0,1]
@@ -285,7 +319,8 @@ class BaseCrackDataset(Dataset):
         mask_tensor = torch.from_numpy(gt_np).unsqueeze(0).float() / 255.0
 
         # random flips
-        img_tensor, mask_tensor = _apply_random_flips(img_tensor, mask_tensor)
+        if self.random_flip:
+            img_tensor, mask_tensor = _apply_random_flips(img_tensor, mask_tensor)
 
         # photometric augmentations
         if self.transform:
@@ -320,6 +355,7 @@ class OVAS(BaseCrackDataset):
         dilate: bool = True,
         in_channels: int = 3,
         shape: int = 256,
+        **kwargs,
     ):
         root = Path("data/ovaskainen23_") / subset
         ext_img = "png"
@@ -342,7 +378,7 @@ class OVAS(BaseCrackDataset):
             dems = sorted(path for path in (root / "dem").iterdir() if path.suffix.lower().lstrip(".") == ext_gt)
 
         super().__init__(images=images, masks=masks, dem_paths=dems, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape, **kwargs)
 
 
 class MATTEO(BaseCrackDataset):
@@ -358,6 +394,7 @@ class MATTEO(BaseCrackDataset):
         dilate: bool = True,
         in_channels: int = 3,
         shape: int = 256,
+        **kwargs,
     ):
         root = Path("data/matteo21") / subset
         ext = "tif"
@@ -371,7 +408,7 @@ class MATTEO(BaseCrackDataset):
         masks = sorted(root / "gt" / name for name in names)
 
         super().__init__(images=images, masks=masks, dem_paths=None, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape, **kwargs)
 
 
 class SAMSU(BaseCrackDataset):
@@ -387,6 +424,7 @@ class SAMSU(BaseCrackDataset):
         dilate: bool = True,
         in_channels: int = 3,
         shape: int = 256,
+        **kwargs,
     ):
         root = Path("data/samsu19") / subset
         ext_img = "png"
@@ -408,7 +446,7 @@ class SAMSU(BaseCrackDataset):
             dems = sorted(p for p in (root / "dem").iterdir() if p.suffix.lstrip(".") == ext_gt)
 
         super().__init__(images=images, masks=masks, dem_paths=dems, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape, **kwargs)
 
 
 class GeoCrack(BaseCrackDataset):
@@ -428,6 +466,7 @@ class GeoCrack(BaseCrackDataset):
         dilate: bool = True,
         in_channels: int = 3,
         shape: int = 256,
+        **kwargs,
     ):
         root = Path("data/GeoCrack_") / subset
         ext = "png"
@@ -436,7 +475,7 @@ class GeoCrack(BaseCrackDataset):
         masks = sorted(p for p in (root / "gt").iterdir() if p.suffix.lstrip(".") == ext)
 
         super().__init__(images=images, masks=masks, dem_paths=None, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape, **kwargs)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         img, mask = super().__getitem__(index)
@@ -456,6 +495,7 @@ class DIC(BaseCrackDataset):
         dilate: bool = False,
         in_channels: int = 1,
         shape: int = 256,
+        **kwargs,
     ):
         root = Path("data/DIC") / subset
         ext_img = "tif"
@@ -465,7 +505,7 @@ class DIC(BaseCrackDataset):
         masks = sorted(p for p in (root / "gt").iterdir() if p.suffix.lstrip(".") == ext_mask)
 
         super().__init__(images=images, masks=masks, dem_paths=None, topo=topo, transform=transform,
-                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape)
+                         expand=expand, dilate=dilate, in_channels=in_channels, shape=shape, **kwargs)
 
     def _load_pair(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -513,6 +553,8 @@ def all_datasets(
     dilate: bool = True,
     shuffle_train: bool = True,
     do_transform: bool = True,
+    deterministic_eval: bool = False,
+    dem_mode: str = "legacy",
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Create concatenated train/val/test DataLoaders from multiple dataset names.
@@ -527,6 +569,10 @@ def all_datasets(
         expand, dilate: whether to apply expand/dilate preprocessing.
         shuffle_train: whether to shuffle the training DataLoader.
         do_transform: whether to enable augmentations.
+        deterministic_eval: if True, val/test get no random flips, so every
+            evaluation of a checkpoint sees identical inputs. Off by default to
+            keep the original runs reproducible.
+        dem_mode: how the DEM channel is prepared; see DEM_MODES.
 
     Returns:
         Tuple(train_loader, val_loader, test_loader)
@@ -540,9 +586,10 @@ def all_datasets(
         if name not in DATASETS:
             raise KeyError(f"Unknown dataset key: {name}")
         DS = DATASETS[name]
-        all_train.append(DS(subset="train", transform=do_transform, expand=expand, dilate=dilate, in_channels=in_channels, shape=shape))
-        all_val.append(DS(subset="valid", transform=False, expand=expand, dilate=dilate, in_channels=in_channels, shape=shape))
-        all_test.append(DS(subset="test", transform=False, expand=expand, dilate=dilate, in_channels=in_channels, shape=shape))
+        common = dict(expand=expand, dilate=dilate, in_channels=in_channels, shape=shape, dem_mode=dem_mode)
+        all_train.append(DS(subset="train", transform=do_transform, **common))
+        all_val.append(DS(subset="valid", transform=False, random_flip=not deterministic_eval, **common))
+        all_test.append(DS(subset="test", transform=False, random_flip=not deterministic_eval, **common))
 
     trainset = ConcatDataset(all_train)
     valset = ConcatDataset(all_val)

@@ -167,3 +167,6 @@ cython_debug/
 
 # notebooks
 .ipynb_checkpoints/
+# reviewer experiments (large arrays/checkpoints stay on the cluster)
+review_out/
+outputs_review/

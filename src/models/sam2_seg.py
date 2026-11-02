@@ -25,7 +25,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import Sam2Model
+from transformers import Sam2Config, Sam2Model
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -78,6 +78,9 @@ class SAM2SegNet(nn.Module):
             inside forward, matching SAM2's own preprocessing. Doing it here
             rather than in the dataset keeps the shared data pipeline identical
             for all benchmark rows.
+        pretrained: if False, build the same encoder from the checkpoint's
+            architecture config only, with transformers' random initialisation
+            and no SAM2 weights (the pretraining ablation).
     """
 
     def __init__(
@@ -89,6 +92,7 @@ class SAM2SegNet(nn.Module):
         freeze_encoder: bool = False,
         img_size: Optional[int] = None,
         normalize: Optional[str] = None,
+        pretrained: bool = True,
     ):
         super().__init__()
         if in_channels != 3:
@@ -98,7 +102,10 @@ class SAM2SegNet(nn.Module):
 
         self.img_size = img_size
         self.normalize = None if normalize == "none" else normalize
-        self.encoder = Sam2Model.from_pretrained(checkpoint).vision_encoder
+        if pretrained:
+            self.encoder = Sam2Model.from_pretrained(checkpoint).vision_encoder
+        else:
+            self.encoder = Sam2Model(Sam2Config.from_pretrained(checkpoint)).vision_encoder
         if freeze_encoder:
             for p in self.encoder.parameters():
                 p.requires_grad_(False)

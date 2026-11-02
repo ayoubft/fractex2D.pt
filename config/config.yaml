@@ -1,6 +1,7 @@
 batch_size: 32
 no_cuda: False
 seed: 42
+seed_everything: False  # True: seed python/numpy/torch before data+model, deterministic cuDNN
 epochs: 111 #
 classes: 2
 threshold: 0.1
