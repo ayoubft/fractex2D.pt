@@ -46,11 +46,15 @@ ap_ref = average_precision_score(y.ravel(), p.astype(np.float32).ravel())
 assert abs(ap - ap_ref) < 1e-9, (ap, ap_ref)
 print(f"AP == sklearn ({ap:.6f})")
 
+from skimage.morphology import skeletonize  # noqa: E402
+
+p32 = p.astype(np.float32)  # evaluate.per_image_pass thresholds float32, as here
 for i in range(n):
-    sk = rng.random((h, h)) > 0.7
-    assert np.array_equal(ev.remove_junctions(sk), remove_junctions(sk)), i
-    a, b = ev.chi2(ev.segment_hist(p[i] > 0.3), ev.segment_hist(y[i])), fracture_similarity(
-        torch.from_numpy((p[i].astype(np.float32) > 0.3).astype(np.float32)), torch.from_numpy(y[i].astype(np.float32)))
+    for sk in (rng.random((h, h)) > 0.7, skeletonize(p32[i] > 0.3)):
+        assert np.array_equal(ev.remove_junctions(sk), remove_junctions(sk)), i
+    a = ev.chi2(ev.segment_hist(p32[i] > 0.3), ev.segment_hist(y[i]))
+    b = fracture_similarity(torch.from_numpy((p32[i] > 0.3).astype(np.float32)),
+                            torch.from_numpy(y[i].astype(np.float32)))
     assert abs(a - b) < 1e-9, (i, a, b)
 print("remove_junctions / FracSim == src.train2")
 print("ALL OK")
