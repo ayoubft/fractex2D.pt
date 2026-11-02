@@ -16,12 +16,14 @@ UNET=(2025-08-14_16-42 2025-08-14_16-43 2025-08-24_02-25 2025-11-03_17-38 2025-1
 for r in "${UNET[@]}"; do
   for m in legacy raw zscore minmax; do
     python -m review.predict "outputs_BM_/unet-huber-rmspro-0.1/$r" --tag "sel_unet_${r}_${m}" \
-      --splits val --no-save --out-root review_out/select "++dataset.dem_mode=$m"
+      --splits val --no-save --out-root review_out/select "++dataset.dem_mode=$m" \
+      || echo "CANDIDATE FAILED: unet $r $m"
   done
 done
 for m in legacy raw zscore minmax; do
   python -m review.predict "multirun_BM_/segformer/2025-08-31_10-53/model=sm_segformer" \
-    --tag "sel_segformer_2025-08-31_10-53_${m}" --splits val --no-save --out-root review_out/select "++dataset.dem_mode=$m"
+    --tag "sel_segformer_2025-08-31_10-53_${m}" --splits val --no-save --out-root review_out/select "++dataset.dem_mode=$m" \
+    || echo "CANDIDATE FAILED: segformer $m"
 done
 python -m review.tb_val_loss outputs_BM_/unet-huber-rmspro-0.1/*/ "multirun_BM_/segformer/2025-08-31_10-53/model=sm_segformer/" \
   > review_out/select/tensorboard_min_val_loss.txt || true

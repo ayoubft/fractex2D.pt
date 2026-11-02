@@ -19,6 +19,7 @@ With --no-save only meta.json is written (used for validation-loss selection).
 import argparse
 import hashlib
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -41,6 +42,27 @@ def md5(path: Path) -> str:
     return h.hexdigest()
 
 
+# src/models/unet.py was restyled in bcde5cb (Sep 2026): same layers, new names
+# ("enc1conv1"/"enc1norm1" -> "enc1_conv1"/"enc1_bn1"). Checkpoints trained before
+# that (all FraXet U-Nets) only load after this rename.
+_LEGACY_UNET = re.compile(r"^(encoder\d|decoder\d|bottleneck)\.((?:enc|dec)\d|bottleneck)(conv|norm)(\d)\.")
+
+
+def load_checkpoint(model, ckpt: Path):
+    """Strict load; for pre-bcde5cb U-Net checkpoints, retry once with the key rename."""
+    state = torch.load(ckpt, map_location="cpu")
+    try:
+        model.load_state_dict(state)
+        return False
+    except RuntimeError:
+        renamed = {_LEGACY_UNET.sub(lambda m: f"{m[1]}.{m[2]}_{'bn' if m[3] == 'norm' else 'conv'}{m[4]}.", k): v
+                   for k, v in state.items()}
+        if renamed.keys() == state.keys():
+            raise
+        model.load_state_dict(renamed)  # strict: any other mismatch still fails
+        return True
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir", type=Path)
@@ -60,7 +82,7 @@ def main(argv=None):
 
     ckpt = args.run_dir / args.checkpoint
     model = instantiate(cfg.model).to(device)
-    model.load_state_dict(torch.load(ckpt, map_location="cpu"))
+    legacy_keys = load_checkpoint(model, ckpt)
     model.eval()
     criterion = instantiate(cfg.loss)
 
@@ -73,7 +95,7 @@ def main(argv=None):
         "tag": args.tag, "run_dir": str(args.run_dir.resolve()), "checkpoint": args.checkpoint,
         "checkpoint_md5": md5(ckpt), "model": model_name, "in_channels": cfg.in_channels,
         "overrides": overrides, "datasets": cfg.dataset.datasets,
-        "dem_mode": cfg.dataset.get("dem_mode", "legacy"),
+        "dem_mode": cfg.dataset.get("dem_mode", "legacy"), "legacy_unet_key_rename": legacy_keys,
         "loss_fn": cfg.loss._target_, "device": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
         "splits": {},
     }
